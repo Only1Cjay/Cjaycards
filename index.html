@@ -828,7 +828,7 @@ function closeFab() {
 }
 
 // ============================================================
-// SHARE VIA LINK (Using file.io)
+// SHARE VIA LINK (Using JSONBin.io)
 // ============================================================
 function setShareStatus(msg, type) {
     const el = document.getElementById('shareStatus');
@@ -846,7 +846,7 @@ function shareBackup() {
         return;
     }
     
-    setShareStatus('Uploading to temp storage...', 'pending');
+    setShareStatus('Uploading to JSONBin...', 'pending');
     
     const backupData = {
         data: data,
@@ -855,15 +855,13 @@ function shareBackup() {
         exportedAt: new Date().toISOString()
     };
     
-    const jsonString = JSON.stringify(backupData, null, 2);
-    
-    const formData = new FormData();
-    formData.append('file', new Blob([jsonString], { type: 'application/json' }), 'cjaycards_backup.json');
-    formData.append('expires', '1h');
-    
-    fetch('https://file.io', {
+    fetch('https://api.jsonbin.io/v3/b', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Bin-Private': 'false'
+        },
+        body: JSON.stringify(backupData)
     })
     .then(response => {
         if (!response.ok) {
@@ -871,11 +869,16 @@ function shareBackup() {
         }
         return response.json();
     })
-    .then(data => {
-        if (data.success) {
-            const shareLink = data.link;
+    .then(result => {
+        if (result && result.metadata && result.metadata.id) {
+            const binId = result.metadata.id;
+            const shareLink = `https://api.jsonbin.io/v3/b/${binId}/latest`;
             
             setShareStatus('✅ Share link ready! (expires in 1 hour)', 'synced');
+            
+            // Auto-delete after 1 hour
+            const expireTime = Date.now() + 3600000;
+            localStorage.setItem('cjaycards_last_bin', JSON.stringify({ binId, expireTime }));
             
             const resultDiv = document.getElementById('shareResult');
             if (resultDiv) {
@@ -883,19 +886,29 @@ function shareBackup() {
                     <div style="margin-top:12px; padding:12px; background:var(--bg-primary); border-radius:10px; border:1px solid var(--border-color);">
                         <p style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">Share this link (expires in 1 hour):</p>
                         <div class="share-link-box">${shareLink}</div>
+                        <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Code: <strong>${binId}</strong></p>
                         <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-primary" onclick="copyLink('${shareLink}')">📋 Copy Link</button>
-                            <button class="btn btn-sm btn-neutral" onclick="window.open('${shareLink}', '_blank')">🔗 Open</button>
+                            <button class="btn btn-sm btn-neutral" onclick="copyLink('${binId}')">📋 Copy Code</button>
                             <button class="btn btn-sm btn-success" onclick="generateQR('${shareLink}')">📱 Show QR</button>
                         </div>
                         <div id="qrContainer" style="margin-top:8px;"></div>
+                        <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">⏰ Link expires in 1 hour</p>
                     </div>
                 `;
             }
             
             showToast('✅ Share link created!');
+            
+            // Schedule auto-deletion after 1 hour
+            setTimeout(() => {
+                fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                    method: 'DELETE'
+                }).catch(() => {});
+            }, 3600000);
+            
         } else {
-            throw new Error(data.message || 'Upload failed');
+            throw new Error('Failed to create bin');
         }
     })
     .catch(error => {
@@ -948,7 +961,7 @@ function generateQR(link) {
 }
 
 // ============================================================
-// IMPORT FROM LINK (file.io)
+// IMPORT FROM LINK (JSONBin.io)
 // ============================================================
 function openImportLink() {
     closeFab();
@@ -958,9 +971,9 @@ function openImportLink() {
     
     content.innerHTML = `
         <h2>Import from Link</h2>
-        <p class="sub">Enter the file.io link you received (expires in 1 hour).</p>
+        <p class="sub">Enter the JSONBin link or code you received (expires in 1 hour).</p>
         <label>Link or Code</label>
-        <input id="importLinkInput" placeholder="e.g. https://file.io/abc123xyz or abc123xyz">
+        <input id="importLinkInput" placeholder="e.g. https://api.jsonbin.io/v3/b/abc123/latest or abc123">
         <div class="btn-row">
             <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
             <button class="btn btn-primary" onclick="confirmImportLink()">Import</button>
@@ -984,16 +997,20 @@ function confirmImportLink() {
         return;
     }
     
-    let fileId = link;
-    if (link.includes('file.io/')) {
+    // Extract bin ID from link or use directly
+    let binId = link;
+    if (link.includes('jsonbin.io/')) {
         const parts = link.split('/');
-        fileId = parts[parts.length - 1];
+        binId = parts[parts.length - 1];
+        if (binId === 'latest') {
+            binId = parts[parts.length - 2];
+        }
     }
     
-    fileId = fileId.split('?')[0].split('#')[0].trim();
+    binId = binId.split('?')[0].split('#')[0].trim();
     
-    if (fileId.length < 5) {
-        status.textContent = 'Invalid link. Please check the URL.';
+    if (binId.length < 10) {
+        status.textContent = 'Invalid link or code. Please check.';
         status.className = 'error';
         return;
     }
@@ -1001,7 +1018,7 @@ function confirmImportLink() {
     status.textContent = 'Downloading data...';
     status.className = 'pending';
     
-    const downloadUrl = `https://file.io/${fileId}`;
+    const downloadUrl = `https://api.jsonbin.io/v3/b/${binId}/latest`;
     
     fetch(downloadUrl)
         .then(response => {
@@ -1013,27 +1030,11 @@ function confirmImportLink() {
             }
             return response.json();
         })
-        .then(data => {
-            if (!data.success) {
-                throw new Error(data.message || 'Invalid response from file.io');
-            }
+        .then(result => {
+            let backupData = result.record || result;
             
-            let fileContent = data.content || data.data || data;
-            
-            if (typeof fileContent === 'string' && fileContent.startsWith('data:application/json;base64,')) {
-                const base64 = fileContent.replace('data:application/json;base64,', '');
-                fileContent = atob(base64);
-            }
-            
-            if (fileContent.content) {
-                fileContent = fileContent.content;
-            }
-            
-            let backupData;
-            if (typeof fileContent === 'string') {
-                backupData = JSON.parse(fileContent);
-            } else {
-                backupData = fileContent;
+            if (backupData.record) {
+                backupData = backupData.record;
             }
             
             if (!backupData.data || !backupData.data.decks) {
@@ -1067,6 +1068,11 @@ function confirmImportLink() {
             renderSettings();
             closeModal();
             showToast(`✅ Imported ${cardCount} cards from link!`);
+            
+            // Delete bin after successful import
+            fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                method: 'DELETE'
+            }).catch(() => {});
             
         })
         .catch(error => {
