@@ -1,1 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CjayCards — Spaced Repetition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        
+        :root {
+            --bg-primary: #0a1628;
+            --bg-secondary: #0f1f3a;
+            --bg-card: #142a4a;
+            --bg-input: #0a1628;
+            --bg-modal: #0f1f3a;
+            --bg-fab: #1a3a5a;
+            --text-primary: #e8edf5;
+            --text-secondary: #8aa3c9;
+            --text-muted: #5a7a9f;
+            --border-color: #1a3a5a;
+            --shadow-color: rgba(0,0,0,0.5);
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-light: #3b82f6;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --warning: #eab308;
+            --btn-primary: #2563eb;
+            --btn-primary-text: #ffffff;
+            --btn-neutral: #1a3a5a;
+            --btn-neutral-text: #8aa3c9;
+            --btn-neutral-hover: #2563eb;
+            --card-bg: #0f1f3a;
+            --deck-border: #2563eb;
+            --overlay-bg: rgba(0,0,0,0.7);
+            --fab-shadow: rgba(37, 99, 235, 0.4);
+            --scrollbar-track: #0a1628;
+            --scrollbar-thumb: #1a3a5a;
+            --modal-bg: #0f1f3a;
+        }
 
+        [data-theme="light"] {
+            --bg-primary: #f0f4fa;
+            --bg-secondary: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-input: #f0f4fa;
+            --bg-modal: #ffffff;
+            --bg-fab: #e2e8f0;
+            --text-primary: #0a1628;
+            --text-secondary: #1a3a5a;
+            --text-muted: #5a7a9f;
+            --border-color: #cbd5e1;
+            --shadow-color: rgba(0,0,0,0.1);
+            --btn-neutral: #e2e8f0;
+            --btn-neutral-text: #1a3a5a;
+            --btn-neutral-hover: #2563eb;
+            --card-bg: #ffffff;
+            --overlay-bg: rgba(0,0,0,0.4);
+            --fab-shadow: rgba(37, 99, 235, 0.3);
+            --scrollbar-track: #e2e8f0;
+            --scrollbar-thumb: #94a3b8;
+            --modal-bg: #ffffff;
+        }
+
+        html { scroll-behavior: smooth; }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 16px 16px 90px 16px;
+            transition: background 0.3s, color 0.3s;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+
+        .hidden { display: none !important; }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .top-bar h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+        .top-bar h1 span { color: var(--accent); }
+        .top-bar .badge {
+            background: var(--bg-secondary);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .top-bar .right-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary {
+            background: var(--btn-primary);
+            color: var(--btn-primary-text);
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-neutral {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+        }
+        .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        .btn-block { width: 100%; padding: 14px; }
+        
+        .screen { display: none; animation: fadeIn 0.25s ease; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .deck-grid { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+        .deck-card {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--deck-border);
+            box-shadow: 0 2px 8px var(--shadow-color);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .deck-card .info h3 { font-size: 17px; color: var(--text-primary); }
+        .deck-card .info p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+        .deck-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .card-container {
+            background: var(--card-bg);
+            border-radius: 18px;
+            padding: 30px 20px;
+            min-height: 260px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            margin: 16px 0;
+            box-shadow: 0 4px 20px var(--shadow-color);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .card-container .front { font-size: 22px; font-weight: 500; color: var(--text-primary); }
+        .card-container .back {
+            font-size: 20px;
+            color: var(--accent-light);
+            margin-top: 12px;
+            display: none;
+        }
+        .card-container .back.show { display: block; }
+        .card-container .counter {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 16px;
+        }
+        .card-container .card-tags {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 12px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .card-container .card-tags span {
+            background: var(--bg-secondary);
+            padding: 2px 10px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .interval-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .interval-btns .btn { 
+            padding: 14px 0; 
+            font-size: 13px; 
+            border-radius: 10px;
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+            transition: 0.2s;
+        }
+        .interval-btns .btn:active { transform: scale(0.95); }
+        .interval-btns .btn:hover { 
+            background: var(--btn-neutral-hover); 
+            color: #fff; 
+        }
+        
+        .settings-group {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 16px;
+            margin: 12px 0;
+            transition: background 0.3s;
+        }
+        .settings-group label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 10px 0 4px;
+        }
+        .settings-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 15px;
+            transition: background 0.3s, color 0.3s, border 0.3s;
+        }
+        .settings-group input:focus {
+            outline: 2px solid var(--accent);
+            border-color: transparent;
+        }
+        .settings-group input[type="text"] { 
+            font-size: 14px; 
+            padding: 8px 12px; 
+        }
+        .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .settings-divider {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 20px 0;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--overlay-bg);
+            backdrop-filter: blur(6px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            padding: 20px;
+            transition: background 0.3s;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--modal-bg);
+            border-radius: 20px;
+            padding: 28px 24px;
+            max-width: 440px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.25s ease;
+            box-shadow: 0 8px 40px var(--shadow-color);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal h2 { font-size: 20px; color: var(--text-primary); margin-bottom: 6px; }
+        .modal .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; }
+        .modal label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 12px 0 4px;
+        }
+        .modal input, .modal textarea, .modal select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+            resize: vertical;
+            transition: background 0.3s, color 0.3s, border 0.3s;
+        }
+        .modal input:focus, .modal textarea:focus, .modal select:focus {
+            outline: 2px solid var(--accent);
+            border-color: transparent;
+        }
+        .modal textarea { min-height: 60px; }
+        .modal .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .modal .btn-row .btn { flex: 1; text-align: center; }
+        
+        .card-list-modal { max-height: 300px; overflow-y: auto; margin: 12px 0; }
+        .card-list-item {
+            background: var(--bg-primary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: background 0.3s;
+        }
+        .card-list-item .card-tags-sm {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .card-list-item .card-tags-sm span {
+            background: var(--bg-secondary);
+            padding: 1px 8px;
+            border-radius: 10px;
+        }
+        .card-list-item .del {
+            color: var(--danger);
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .card-list-item .del:active { opacity: 0.6; }
+        
+        .fab-container {
+            position: fixed;
+            bottom: 24px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .fab {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 28px;
+            font-weight: 300;
+            cursor: pointer;
+            box-shadow: 0 4px 16px var(--fab-shadow);
+            transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fab:active { transform: scale(0.9); }
+        .fab.open { transform: rotate(45deg); background: var(--danger); }
+        
+        .fab-menu {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 8px 0;
+            min-width: 200px;
+            box-shadow: 0 8px 32px var(--shadow-color);
+            transform: scale(0.8) translateY(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border: 1px solid var(--border-color);
+        }
+        .fab-menu.open {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .fab-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.15s;
+            font-family: inherit;
+        }
+        .fab-menu-item:active { background: var(--bg-secondary); }
+        .fab-menu-item .icon { 
+            font-size: 18px; 
+            width: 24px; 
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        .fab-menu-item .label { flex: 1; text-align: left; }
+        .fab-menu-divider {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 4px 12px;
+        }
+        
+        .search-result-item {
+            background: var(--bg-primary);
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: background 0.3s;
+        }
+        .search-result-item .deck-name {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .search-result-item .tags-sm {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .search-result-item .tags-sm span {
+            background: var(--bg-secondary);
+            padding: 1px 8px;
+            border-radius: 10px;
+        }
+        
+        .empty-state { text-align: center; padding: 40px 0; color: var(--text-muted); }
+        .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mt-12 { margin-top: 12px; }
+        .mb-8 { margin-bottom: 8px; }
+        .text-muted { color: var(--text-muted); font-size: 14px; }
+        .text-center { text-align: center; }
+        
+        .icon-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--text-secondary);
+            transition: 0.2s;
+        }
+        .icon-btn:active { transform: scale(0.92); }
+        .icon-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px var(--shadow-color);
+            font-size: 14px;
+            z-index: 200;
+            opacity: 0;
+            transition: 0.3s;
+            pointer-events: none;
+            text-align: center;
+            max-width: 90%;
+        }
+        .toast.show { opacity: 1; }
+        
+        .hidden-file-input { display: none; }
+        
+        @media (max-width: 400px) {
+            .interval-btns { grid-template-columns: 1fr 1fr; }
+            .settings-row { grid-template-columns: 1fr 1fr; }
+            .deck-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .deck-card .actions { width: 100%; justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="top-bar">
+    <h1>Cjay<span>Cards</span></h1>
+    <div class="right-group">
+        <span class="badge" id="dueBadge">0 due</span>
+        <button class="icon-btn" onclick="openSearch()" aria-label="Search">🔍</button>
+        <button class="icon-btn" onclick="toggleTheme()" id="themeToggle" aria-label="Toggle theme">🌙</button>
+        <button class="btn btn-neutral btn-sm" onclick="showScreen('home')">Home</button>
+        <button class="btn btn-neutral btn-sm" onclick="showScreen('settings')">Settings</button>
+    </div>
+</div>
+
+<div id="screen-home" class="screen active">
+    <div class="flex-between">
+        <span class="text-muted">Your Decks</span>
+        <button class="btn btn-primary btn-sm" onclick="openModal('newDeck')">+ New Deck</button>
+    </div>
+    <div id="deckList" class="deck-grid"></div>
+</div>
+
+<div id="screen-study" class="screen">
+    <div class="flex-between mb-8">
+        <button class="btn btn-outline btn-sm" onclick="exitStudy()">← Back</button>
+        <span id="studyDeckName" class="text-muted" style="font-weight:500;"></span>
+        <span id="studyProgress" class="text-muted" style="font-size:13px;"></span>
+    </div>
+    <div id="studyArea">
+        <div class="card-container" id="cardContainer">
+            <div class="front" id="cardFront">Loading...</div>
+            <div class="back" id="cardBack">Answer</div>
+            <div class="card-tags" id="cardTags"></div>
+            <div class="counter" id="cardCounter"></div>
+        </div>
+        <div id="studyActions">
+            <button class="btn btn-neutral btn-block" onclick="flipCard()">Reveal Answer</button>
+            <div class="interval-btns hidden" id="intervalBtns"></div>
+            <button class="btn btn-outline btn-sm btn-block" style="margin-top:8px;" onclick="skipCard()">Skip for now</button>
+        </div>
+        <div id="studyComplete" class="hidden text-center" style="padding:30px 0;">
+            <div style="font-size:48px; margin-bottom:12px;">🎉</div>
+            <h3 style="color:var(--text-primary);">All done for now!</h3>
+            <p class="text-muted">You've reviewed all due cards in this deck.</p>
+            <button class="btn btn-primary mt-12" onclick="exitStudy()">Back to Decks</button>
+        </div>
+    </div>
+</div>
+
+<div id="screen-settings" class="screen">
+    <div class="flex-between" style="margin-bottom:16px;">
+        <h2 style="color:var(--text-primary);">Settings</h2>
+    </div>
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Deck Intervals (days)</h3>
+    <div id="settingsList"></div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Button Labels</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Customize what appears on each button.</p>
+    <div class="settings-group">
+        <label>Label 1 (Again)</label>
+        <input type="text" id="labelAgain" value="Again" onchange="saveButtonLabels()">
+        <label>Label 2 (Hard)</label>
+        <input type="text" id="labelHard" value="Hard" onchange="saveButtonLabels()">
+        <label>Label 3 (Good)</label>
+        <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
+        <label>Label 4 (Easy)</label>
+        <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
+    </div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Backup & Restore</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Export your data as a JSON file or import a backup.</p>
+    <div class="settings-group">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" onclick="exportBackup()">💾 Export Backup</button>
+            <button class="btn btn-neutral btn-sm" onclick="importBackup()">📂 Import Backup</button>
+        </div>
+    </div>
+    
+    <button class="btn btn-danger btn-block" style="margin-top:20px;" onclick="resetAllData()">Reset All Data</button>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="fab-container">
+    <div class="fab-menu" id="fabMenu">
+        <button class="fab-menu-item" onclick="closeFab(); openModal('addCard', getSelectedDeckId())">
+            <span class="icon">➕</span><span class="label">Add Card</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); openSearch()">
+            <span class="icon">🔍</span><span class="label">Search Cards</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); openTagsOverview()">
+            <span class="icon">🏷️</span><span class="label">Tags Overview</span>
+        </button>
+        <hr class="fab-menu-divider">
+        <button class="fab-menu-item" onclick="closeFab(); importCSV()">
+            <span class="icon">📥</span><span class="label">Import CSV</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); exportCSV()">
+            <span class="icon">📤</span><span class="label">Export CSV</span>
+        </button>
+        <hr class="fab-menu-divider">
+        <button class="fab-menu-item" onclick="closeFab(); resetProgress()">
+            <span class="icon">🔄</span><span class="label">Reset Progress</span>
+        </button>
+    </div>
+    <button class="fab" id="fabButton" onclick="toggleFab()">+</button>
+</div>
+
+<input type="file" id="fileInput" class="hidden-file-input" accept=".csv">
+<input type="file" id="backupInput" class="hidden-file-input" accept=".json">
+
+<script>
+// ============================================================
+// DATA LAYER
+// ============================================================
+const STORAGE_KEY = 'cjaycards_data';
+const LABELS_KEY = 'cjaycards_labels';
+
+function getDefaultData() {
+    return { decks: {} };
+}
+
+function getDefaultLabels() {
+    return { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
+}
+
+let data = loadData();
+let labels = loadLabels();
+let currentDeckId = null;
+let currentCardIndex = 0;
+let studyQueue = [];
+let isFlipped = false;
+let selectedDeckId = null;
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            for (const [id, deck] of Object.entries(parsed.decks)) {
+                if (!deck.intervals) deck.intervals = [0.0417, 1, 3, 7];
+                if (!deck.cards) deck.cards = [];
+                deck.cards.forEach(c => { if (!c.tags) c.tags = []; });
+            }
+            return parsed;
+        }
+    } catch (e) {}
+    return getDefaultData();
+}
+
+function loadLabels() {
+    try {
+        const raw = localStorage.getItem(LABELS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return getDefaultLabels();
+}
+
+function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    updateBadge();
+}
+
+function saveLabels() {
+    localStorage.setItem(LABELS_KEY, JSON.stringify(labels));
+}
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function today() { return new Date().toDateString(); }
+function daysFromNow(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toDateString(); }
+function isDue(card) { return new Date(card.dueDate) <= new Date(); }
+
+function getIntervalDisplay(days) {
+    if (days < 1) {
+        const hours = Math.round(days * 24);
+        return hours + 'h';
+    } else if (days < 30) {
+        return days + 'd';
+    } else {
+        const months = Math.round(days / 30);
+        return months + 'mo';
+    }
+}
+
+function getButtonLabel(index) {
+    const map = ['again', 'hard', 'good', 'easy'];
+    return labels[map[index]] || map[index];
+}
+
+function getSelectedDeckId() {
+    if (selectedDeckId && data.decks[selectedDeckId]) {
+        return selectedDeckId;
+    }
+    const ids = Object.keys(data.decks);
+    if (ids.length > 0) {
+        selectedDeckId = ids[0];
+        return ids[0];
+    }
+    return null;
+}
+
+// ============================================================
+// THEME
+// ============================================================
+function getStoredTheme() {
+    return localStorage.getItem('cjaycards_theme') || 'dark';
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cjaycards_theme', theme);
+    document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
+function toggleTheme() {
+    const current = getStoredTheme();
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+applyTheme(getStoredTheme());
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimeout;
+
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// FAB
+// ============================================================
+function toggleFab() {
+    const menu = document.getElementById('fabMenu');
+    const btn = document.getElementById('fabButton');
+    menu.classList.toggle('open');
+    btn.classList.toggle('open');
+}
+
+function closeFab() {
+    const menu = document.getElementById('fabMenu');
+    const btn = document.getElementById('fabButton');
+    menu.classList.remove('open');
+    btn.classList.remove('open');
+}
+
+// ============================================================
+// BACKUP SYSTEM
+// ============================================================
+function exportBackup() {
+    closeFab();
+    const backupData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        data: data,
+        labels: labels,
+        theme: getStoredTheme()
+    };
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cjaycards_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup exported!');
+}
+
+function importBackup() {
+    closeFab();
+    document.getElementById('backupInput').click();
+}
+
+document.getElementById('backupInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        try {
+            const backupData = JSON.parse(event.target.result);
+            if (!backupData.data || !backupData.data.decks) {
+                showToast('Invalid backup file!');
+                return;
+            }
+            let cardCount = 0;
+            for (const [id, deck] of Object.entries(backupData.data.decks)) {
+                cardCount += deck.cards ? deck.cards.length : 0;
+            }
+            if (!confirm(`Replace all current data with backup?\n\nBackup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} card(s)\n\nContinue?`)) return;
+            data = backupData.data;
+            if (backupData.labels) {
+                labels = backupData.labels;
+                saveLabels();
+                document.getElementById('labelAgain').value = labels.again || 'Again';
+                document.getElementById('labelHard').value = labels.hard || 'Hard';
+                document.getElementById('labelGood').value = labels.good || 'Good';
+                document.getElementById('labelEasy').value = labels.easy || 'Easy';
+            }
+            if (backupData.theme) applyTheme(backupData.theme);
+            saveData();
+            renderHome();
+            renderSettings();
+            showToast(`✅ Restored ${cardCount} cards from backup!`);
+        } catch (err) {
+            showToast('❌ Error: Invalid backup file');
+            console.error(err);
+        }
+    };
+    reader.readAsText(file);
+    this.value = '';
+});
+
+// ============================================================
+// MODAL SYSTEM// ============================================================
+function openModal(type, deckId, cardId) {
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    
+    if (type === 'newDeck') {
+        content.innerHTML = `
+            <h2>New Deck</h2>
+            <p class="sub">Create a new deck for a subject or topic.</p>
+            <label>Deck Name</label>
+            <input id="modalDeckName" placeholder="e.g. Anatomy, History, French" autofocus>
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmNewDeck()">Create</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        setTimeout(() => document.getElementById('modalDeckName')?.focus(), 100);
+        return;
+    }
+    
+    if (type === 'addCard') {
+        if (!deckId || !data.decks[deckId]) {
+            const ids = Object.keys(data.decks);
+            if (ids.length === 0) {
+                showToast('Please create a deck first.');
+                return;
+            }
+            deckId = ids[0];
+            selectedDeckId = deckId;
+        }
+        const deck = data.decks[deckId];
+        content.innerHTML = `
+            <h2>Add Card</h2>
+            <p class="sub">To: <strong style="color:var(--text-primary);">${deck.name}</strong></p>
+            <label>Front (Question)</label>
+            <textarea id="modalFront" placeholder="What is the capital of France?"></textarea>
+            <label>Back (Answer)</label>
+            <textarea id="modalBack" placeholder="Paris"></textarea>
+            <label>Tags (comma-separated)</label>
+            <input id="modalTags" placeholder="e.g. geography, exam, weak">
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmAddCard('${deckId}')">Add Card</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        setTimeout(() => document.getElementById('modalFront')?.focus(), 100);
+        return;
+    }
+    
+    if (type === 'editCard') {
+        if (!deckId || !data.decks[deckId]) return;
+        const deck = data.decks[deckId];
+        const card = deck.cards.find(c => c.id === cardId);
+        if (!card) return;
+        content.innerHTML = `
+            <h2>Edit Card</h2>
+            <p class="sub">In: <strong style="color:var(--text-primary);">${deck.name}</strong></p>
+            <label>Front (Question)</label>
+            <textarea id="modalFront">${card.front}</textarea>
+            <label>Back (Answer)</label>
+            <textarea id="modalBack">${card.back}</textarea>
+            <label>Tags (comma-separated)</label>
+            <input id="modalTags" value="${card.tags ? card.tags.join(', ') : ''}">
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmEditCard('${deckId}','${cardId}')">Save</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        setTimeout(() => document.getElementById('modalFront')?.focus(), 100);
+        return;
+    }
+    
+    if (type === 'manageDeck') {
+        if (!deckId || !data.decks[deckId]) {
+            showToast('Deck not found.');
+            return;
+        }
+        const deck = data.decks[deckId];
+        let cardHtml = '';
+        if (deck.cards.length === 0) {
+            cardHtml = '<p class="text-muted" style="padding:12px 0;">No cards yet.</p>';
+        } else {
+            cardHtml = deck.cards.map((c, i) => `
+                <div class="card-list-item">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.front}</div>
+                        ${c.tags && c.tags.length > 0 ? `<div class="card-tags-sm"><span>${c.tags.join('</span><span>')}</span></div>` : ''}
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <span class="del" onclick="openModal('editCard','${deckId}','${c.id}')" style="background:var(--accent);color:#fff;">✎</span>
+                        <span class="del" onclick="deleteCard('${deckId}','${c.id}')">✕</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        content.innerHTML = `
+            <h2>${deck.name}</h2>
+            <p class="sub">${deck.cards.length} cards total</p>
+            <div class="card-list-modal">${cardHtml}</div>
+            <div class="btn-row" style="flex-wrap:wrap;">
+                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal();openModal('addCard','${deckId}')">+ Add Card</button>
+                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal();renameDeck('${deckId}')">Rename</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="closeModal();deleteDeck('${deckId}')">Delete</button>
+                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal()">Done</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        return;
+    }
+    
+    if (type === 'search') {
+        content.innerHTML = `
+            <h2>Search Cards</h2>
+            <p class="sub">Search by front, back, or tags (use #tagname)</p>
+            <input id="searchInput" placeholder="Type to search..." oninput="liveSearch()" autofocus>
+            <div id="searchResults" style="margin-top:12px; max-height:300px; overflow-y:auto;"></div>
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Close</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        setTimeout(() => document.getElementById('searchInput')?.focus(), 100);
+        return;
+    }
+    
+    if (type === 'tagsOverview') {
+        const tagCounts = {};
+        for (const [deckId, deck] of Object.entries(data.decks)) {
+            deck.cards.forEach(c => {
+                if (c.tags) {
+                    c.tags.forEach(tag => {
+                        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    });
+                }
+            });
+        }
+        const sorted = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+        let html = sorted.length === 0 ? '<p class="text-muted">No tags found.</p>' : 
+            sorted.map(([tag, count]) => `
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <span style="color:var(--text-primary);">#${tag}</span>
+                    <span class="text-muted">${count} card${count > 1 ? 's' : ''}</span>
+                </div>
+            `).join('');
+        content.innerHTML = `
+            <h2>Tags Overview</h2>
+            <p class="sub">All tags across all decks</p>
+            <div style="max-height:300px; overflow-y:auto;">${html}</div>
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Close</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        return;
+    }
+    
+    if (type === 'resetProgress') {
+        const deckOptions = Object.entries(data.decks).map(([id, d]) => 
+            `<option value="${id}">${d.name}</option>`
+        ).join('');
+        content.innerHTML = `
+            <h2>Reset Progress</h2>
+            <p class="sub">Reset all due dates to today for a deck.</p>
+            <label>Select Deck</label>
+            <select id="resetDeckSelect">
+                ${deckOptions}
+            </select>
+            <div class="btn-row">
+                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmResetProgress()">Reset</button>
+            </div>
+        `;
+        overlay.classList.add('active');
+        return;
+    }
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function confirmNewDeck() {
+    const nameInput = document.getElementById('modalDeckName');
+    if (!nameInput) {
+        showToast('Error: Could not find input field.');
+        return;
+    }
+    const deckName = nameInput.value.trim();
+    if (!deckName) {
+        showToast('Please enter a deck name.');
+        return;
+    }
+    const id = generateId();
+    data.decks[id] = { 
+        name: deckName, 
+        intervals: [0.0417, 1, 3, 7], 
+        cards: [] 
+    };
+    saveData();
+    closeModal();
+    renderHome();
+    showToast('✅ Deck created: ' + deckName);
+}
+
+function confirmAddCard(deckId) {
+    const front = document.getElementById('modalFront').value.trim();
+    const back = document.getElementById('modalBack').value.trim();
+    if (!front || !back) return;
+    const tagsRaw = document.getElementById('modalTags').value.trim();
+    const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t) : [];
+    data.decks[deckId].cards.push({
+        id: generateId(),
+        front, back,
+        tags: tags,
+        dueDate: today(),
+        step: 0,
+        ease: 2.5
+    });
+    saveData();
+    closeModal();
+    renderHome();
+    showToast('Card added!');
+}
+
+function confirmEditCard(deckId, cardId) {
+    const front = document.getElementById('modalFront').value.trim();
+    const back = document.getElementById('modalBack').value.trim();
+    if (!front || !back) return;
+    const tagsRaw = document.getElementById('modalTags').value.trim();
+    const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t) : [];
+    const card = data.decks[deckId].cards.find(c => c.id === cardId);
+    if (card) {
+        card.front = front;
+        card.back = back;
+        card.tags = tags;
+        saveData();
+        closeModal();
+        renderHome();
+        showToast('Card updated!');
+    }
+}
+
+function deleteCard(deckId, cardId) {
+    if (!confirm('Delete this card?')) return;
+    data.decks[deckId].cards = data.decks[deckId].cards.filter(c => c.id !== cardId);
+    saveData();
+    openModal('manageDeck', deckId);
+    renderHome();
+}
+
+function renameDeck(deckId) {
+    const newName = prompt('New deck name:', data.decks[deckId].name);
+    if (newName && newName.trim()) {
+        data.decks[deckId].name = newName.trim();
+        saveData();
+        renderHome();
+    }
+}
+
+function deleteDeck(id) {
+    if (!confirm(`Delete "${data.decks[id].name}" and all its cards?`)) return;
+    delete data.decks[id];
+    saveData();
+    renderHome();
+    renderSettings();
+}
+
+// ============================================================
+// SEARCH
+// ============================================================
+function openSearch() {
+    closeFab();
+    openModal('search');
+    setTimeout(() => {
+        const input = document.getElementById('searchInput');
+        if (input) {
+            input.addEventListener('input', liveSearch);
+            liveSearch();
+        }
+    }, 100);
+}
+
+function liveSearch() {
+    const input = document.getElementById('searchInput');
+    const results = document.getElementById('searchResults');
+    if (!input || !results) return;
+    const query = input.value.toLowerCase().trim();
+    if (!query) {
+        results.innerHTML = '<p class="text-muted">Type to search...</p>';
+        return;
+    }
+    
+    const isTagSearch = query.startsWith('#');
+    const searchTerm = isTagSearch ? query.slice(1) : query;
+    
+    let matches = [];
+    for (const [deckId, deck] of Object.entries(data.decks)) {
+        deck.cards.forEach(c => {
+            let match = false;
+            if (isTagSearch) {
+                if (c.tags && c.tags.some(t => t.toLowerCase().includes(searchTerm))) match = true;
+            } else {
+                if (c.front.toLowerCase().includes(searchTerm) || 
+                    c.back.toLowerCase().includes(searchTerm) ||
+                    (c.tags && c.tags.some(t => t.toLowerCase().includes(searchTerm)))) match = true;
+            }
+            if (match) matches.push({ ...c, deckName: deck.name, deckId });
+        });
+    }
+    
+    if (matches.length === 0) {
+        results.innerHTML = '<p class="text-muted">No matches found.</p>';
+        return;
+    }
+    
+    results.innerHTML = matches.map(m => `
+        <div class="search-result-item">
+            <div>
+                <div style="font-weight:500;">${m.front}</div>
+                <div class="deck-name">${m.deckName}</div>
+                ${m.tags && m.tags.length > 0 ? `<div class="tags-sm"><span>${m.tags.join('</span><span>')}</span></div>` : ''}
+            </div>
+            <button class="btn btn-sm btn-neutral" onclick="closeModal();startStudy('${m.deckId}')">Study</button>
+        </div>
+    `).join('');
+}
+
+// ============================================================
+// TAGS OVERVIEW
+// ============================================================
+function openTagsOverview() {
+    closeFab();
+    openModal('tagsOverview');
+}
+
+// ============================================================
+// RENDER: HOME
+// ============================================================
+function renderHome() {
+    const container = document.getElementById('deckList');
+    const ids = Object.keys(data.decks);
+    if (ids.length === 0) {
+        container.innerHTML = `<div class="empty-state"><div style="font-size:48px; margin-bottom:12px; opacity:0.3;">📚</div><p>No decks yet. Tap "+ New Deck"</p></div>`;
+        return;
+    }
+    container.innerHTML = ids.map(id => {
+        const deck = data.decks[id];
+        const due = deck.cards.filter(c => isDue(c)).length;
+        return `
+            <div class="deck-card">
+                <div class="info">
+                    <h3>${deck.name}</h3>
+                    <p>${due} due · ${deck.cards.length} total</p>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-primary btn-sm" onclick="selectedDeckId='${id}';startStudy('${id}')">Study</button>
+                    <button class="btn btn-neutral btn-sm" onclick="selectedDeckId='${id}';openModal('manageDeck','${id}')">Edit</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    updateBadge();
+}
+
+function updateBadge() {
+    let total = 0;
+    for (const id of Object.keys(data.decks)) {
+        total += data.decks[id].cards.filter(c => isDue(c)).length;
+    }
+    document.getElementById('dueBadge').textContent = total + ' due';
+}
+
+// ============================================================
+// STUDY ENGINE
+// ============================================================
+function startStudy(deckId) {
+    currentDeckId = deckId;
+    const deck = data.decks[deckId];
+    const due = deck.cards.filter(c => isDue(c));
+    if (due.length === 0) {
+        showToast('No cards due in this deck!');
+        return;
+    }
+    studyQueue = due.sort(() => Math.random() - 0.5);
+    currentCardIndex = 0;
+    isFlipped = false;
+    document.getElementById('studyDeckName').textContent = deck.name;
+    showScreen('study');
+    renderCard();
+}
+
+function renderCard() {
+    const container = document.getElementById('cardContainer');
+    const front = document.getElementById('cardFront');
+    const back = document.getElementById('cardBack');
+    const tags = document.getElementById('cardTags');
+    const counter = document.getElementById('cardCounter');
+    const btns = document.getElementById('intervalBtns');
+    const complete = document.getElementById('studyComplete');
+    const actions = document.getElementById('studyActions');
+    const revealBtn = document.querySelector('#studyActions .btn-neutral');
+    
+    if (currentCardIndex >= studyQueue.length) {
+        container.style.display = 'none';
+        actions.classList.add('hidden');
+        complete.classList.remove('hidden');
+        return;
+    }
+    container.style.display = 'flex';
+    actions.classList.remove('hidden');
+    complete.classList.add('hidden');
+    btns.classList.add('hidden');
+    revealBtn.classList.remove('hidden');
+    
+    const card = studyQueue[currentCardIndex];
+    front.textContent = card.front;
+    back.textContent = card.back;
+    back.classList.remove('show');
+    
+    if (card.tags && card.tags.length > 0) {
+        tags.innerHTML = card.tags.map(t => `<span>${t}</span>`).join('');
+        tags.style.display = 'flex';
+    } else {
+        tags.style.display = 'none';
+    }
+    
+    counter.textContent = `${currentCardIndex+1} / ${studyQueue.length}`;
+    isFlipped = false;
+    updateIntervalButtons();
+}
+
+function updateIntervalButtons() {
+    const container = document.getElementById('intervalBtns');
+    const deck = data.decks[currentDeckId];
+    const intervals = deck.intervals;
+    const labelKeys = ['again', 'hard', 'good', 'easy'];
+    
+    container.innerHTML = labelKeys.map((key, i) => {
+        const label = labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+        const display = getIntervalDisplay(intervals[i]);
+        return `<button class="btn" onclick="answerCard(${i})">${label} (${display})</button>`;
+    }).join('');
+    
+    container.classList.remove('hidden');
+}
+
+function flipCard() {
+    if (isFlipped) return;
+    isFlipped = true;
+    document.getElementById('cardBack').classList.add('show');
+    document.querySelector('#studyActions .btn-neutral').classList.add('hidden');
+    document.getElementById('intervalBtns').classList.remove('hidden');
+}
+
+function answerCard(choice) {
+    if (!isFlipped) return;
+    const card = studyQueue[currentCardIndex];
+    const deck = data.decks[currentDeckId];
+    const interval = deck.intervals[choice] || 1;
+    card.dueDate = daysFromNow(interval);
+    const original = deck.cards.find(c => c.id === card.id);
+    if (original) original.dueDate = card.dueDate;
+    saveData();
+    currentCardIndex++;
+    renderCard();
+}
+
+function skipCard() {
+    const card = studyQueue.splice(currentCardIndex, 1)[0];
+    studyQueue.push(card);
+    renderCard();
+}
+
+function exitStudy() {
+    currentDeckId = null;
+    studyQueue = [];
+    currentCardIndex = 0;
+    showScreen('home');
+    renderHome();
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function renderSettings() {
+    const container = document.getElementById('settingsList');
+    const ids = Object.keys(data.decks);
+    if (ids.length === 0) {
+        container.innerHTML = '<p class="text-muted">No decks yet. Create one first.</p>';
+        return;
+    }
+    container.innerHTML = ids.map(id => {
+        const deck = data.decks[id];
+        const ints = deck.intervals;
+        return `
+            <div class="settings-group">
+                <h3 style="color:var(--text-primary); margin-bottom:4px;">${deck.name}</h3>
+                <div class="settings-row">
+                    <div><label>Again</label><input type="number" step="0.01" value="${ints[0]}" data-deck="${id}" data-idx="0" class="interval-input"></div>
+                    <div><label>Hard</label><input type="number" step="0.01" value="${ints[1]}" data-deck="${id}" data-idx="1" class="interval-input"></div>
+                    <div><label>Good</label><input type="number" step="0.01" value="${ints[2]}" data-deck="${id}" data-idx="2" class="interval-input"></div>
+                    <div><label>Easy</label><input type="number" step="0.01" value="${ints[3]}" data-deck="${id}" data-idx="3" class="interval-input"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    document.querySelectorAll('.interval-input').forEach(inp => {
+        inp.addEventListener('change', function() {
+            const deckId = this.dataset.deck;
+            const idx = parseInt(this.dataset.idx);
+            data.decks[deckId].intervals[idx] = parseFloat(this.value) || 0.01;
+            saveData();
+        });
+    });
+    
+    const saved = loadLabels();
+    document.getElementById('labelAgain').value = saved.again || 'Again';
+    document.getElementById('labelHard').value = saved.hard || 'Hard';
+    document.getElementById('labelGood').value = saved.good || 'Good';
+    document.getElementById('labelEasy').value = saved.easy || 'Easy';
+}
+
+function saveButtonLabels() {
+    labels.again = document.getElementById('labelAgain').value.trim() || 'Again';
+    labels.hard = document.getElementById('labelHard').value.trim() || 'Hard';
+    labels.good = document.getElementById('labelGood').value.trim() || 'Good';
+    labels.easy = document.getElementById('labelEasy').value.trim() || 'Easy';
+    saveLabels();
+    showToast('Labels saved!');
+}
+
+// ============================================================
+// CSV IMPORT/EXPORT
+// ============================================================
+function importCSV() {
+    closeFab();
+    document.getElementById('fileInput').click();
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const text = event.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            showToast('CSV must have headers + data.');
+            return;
+        }
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const frontIdx = headers.indexOf('front');
+        const backIdx = headers.indexOf('back');
+        const tagsIdx = headers.indexOf('tags');
+        const deckIdx = headers.indexOf('deck');
+        
+        if (frontIdx === -1 || backIdx === -1) {
+            showToast('CSV must have "front" and "back" columns.');
+            return;
+        }
+        
+        let added = 0;
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim());
+            const front = cols[frontIdx] || '';
+            const back = cols[backIdx] || '';
+            if (!front || !back) continue;
+            const tags = tagsIdx !== -1 && cols[tagsIdx] ? 
+                cols[tagsIdx].split(';').map(t => t.trim()).filter(t => t) : [];
+            let deckName = deckIdx !== -1 && cols[deckIdx] ? cols[deckIdx].trim() : 'Imported';
+            
+            let deckId = Object.keys(data.decks).find(id => data.decks[id].name === deckName);
+            if (!deckId) {
+                deckId = generateId();
+                data.decks[deckId] = { name: deckName, intervals: [0.0417, 1, 3, 7], cards: [] };
+            }
+            data.decks[deckId].cards.push({
+                id: generateId(),
+                front, back,
+                tags: tags,
+                dueDate: today(),
+                step: 0,
+                ease: 2.5
+            });
+            added++;
+        }
+        saveData();
+        renderHome();
+        renderSettings();
+        showToast(`Imported ${added} cards!`);
+    };
+    reader.readAsText(file);
+    this.value = '';
+});
+
+function exportCSV() {
+    closeFab();
+    const ids = Object.keys(data.decks);
+    if (ids.length === 0) {
+        showToast('No decks to export.');
+        return;
+    }
+    let csv = 'Front,Back,Tags,Deck\n';
+    for (const [id, deck] of Object.entries(data.decks)) {
+        deck.cards.forEach(c => {
+            const tags = c.tags ? c.tags.join(';') : '';
+            csv += `"${c.front}","${c.back}","${tags}","${deck.name}"\n`;
+        });
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cjaycards_export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Export complete!');
+}
+
+// ============================================================
+// RESET PROGRESS
+// ============================================================
+function resetProgress() {
+    closeFab();
+    const ids = Object.keys(data.decks);
+    if (ids.length === 0) {
+        showToast('No decks to reset.');
+        return;
+    }
+    openModal('resetProgress');
+}
+
+function confirmResetProgress() {
+    const select = document.getElementById('resetDeckSelect');
+    const deckId = select.value;
+    if (!deckId || !data.decks[deckId]) return;
+    data.decks[deckId].cards.forEach(c => { c.dueDate = today(); });
+    saveData();
+    closeModal();
+    renderHome();
+    showToast('Progress reset for ' + data.decks[deckId].name);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showScreen(screen) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById('screen-' + screen).classList.add('active');
+    if (screen === 'home') renderHome();
+    if (screen === 'settings') renderSettings();
+}
+
+function resetAllData() {
+    if (!confirm('Delete ALL decks and cards?')) return;
+    data = getDefaultData();
+    saveData();
+    renderHome();
+    renderSettings();
+    showToast('All data cleared.');
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+renderHome();
+
+// Expose functions to global scope
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.confirmNewDeck = confirmNewDeck;
+window.confirmAddCard = confirmAddCard;
+window.confirmEditCard = confirmEditCard;
+window.deleteCard = deleteCard;
+window.renameDeck = renameDeck;
+window.deleteDeck = deleteDeck;
+window.startStudy = startStudy;
+window.flipCard = flipCard;
+window.answerCard = answerCard;
+window.skipCard = skipCard;
+window.exitStudy = exitStudy;
+window.showScreen = showScreen;
+window.renderSettings = renderSettings;
+window.resetAllData = resetAllData;
+window.toggleTheme = toggleTheme;
+window.openSearch = openSearch;
+window.liveSearch = liveSearch;
+window.openTagsOverview = openTagsOverview;
+window.importCSV = importCSV;
+window.exportCSV = exportCSV;
+window.resetProgress = resetProgress;
+window.confirmResetProgress = confirmResetProgress;
+window.toggleFab = toggleFab;
+window.closeFab = closeFab;
+window.saveButtonLabels = saveButtonLabels;
+window.getSelectedDeckId = getSelectedDeckId;
+window.exportBackup = exportBackup;
+window.importBackup = importBackup;
+</script>
+</body>
+</html>
