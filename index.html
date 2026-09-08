@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CjayCards — Spaced Repetition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         :root {
             --bg-primary: #0a1628;
@@ -37,6 +40,11 @@
             --scrollbar-track: #0a1628;
             --scrollbar-thumb: #1a3a5a;
             --modal-bg: #0f1f3a;
+            --font-header: 'Plus Jakarta Sans', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            --card-shadow-hover: 0 6px 24px rgba(0,0,0,0.4);
+            --transition-speed: 0.25s;
         }
 
         [data-theme="light"] {
@@ -50,7 +58,7 @@
             --text-secondary: #1a3a5a;
             --text-muted: #5a7a9f;
             --border-color: #cbd5e1;
-            --shadow-color: rgba(0,0,0,0.1);
+            --shadow-color: rgba(0,0,0,0.08);
             --btn-neutral: #e2e8f0;
             --btn-neutral-text: #1a3a5a;
             --btn-neutral-hover: #2563eb;
@@ -60,15 +68,18 @@
             --scrollbar-track: #e2e8f0;
             --scrollbar-thumb: #94a3b8;
             --modal-bg: #ffffff;
+            --card-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            --card-shadow-hover: 0 6px 24px rgba(0,0,0,0.12);
         }
 
         html { scroll-behavior: smooth; }
         body {
+            font-family: var(--font-body);
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
             padding: 16px 16px 90px 16px;
-            transition: background 0.3s, color 0.3s;
+            transition: background var(--transition-speed), color var(--transition-speed);
             overflow-x: hidden;
         }
         ::-webkit-scrollbar { width: 4px; }
@@ -76,121 +87,627 @@
         ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
 
         .hidden { display: none !important; }
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
-        .top-bar h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+        
+        /* ===== TOP BAR ===== */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .top-bar h1 {
+            font-family: var(--font-header);
+            font-weight: 800;
+            font-size: 22px;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
         .top-bar h1 span { color: var(--accent); }
-        .top-bar .badge { background: var(--bg-secondary); padding: 6px 14px; border-radius: 20px; font-size: 13px; color: var(--text-secondary); }
-        .top-bar .right-group { display: flex; align-items: center; gap: 6px; }
+        .top-bar .right-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .top-bar .icon-btn {
+            background: var(--bg-secondary);
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-secondary);
+            transition: var(--transition-speed);
+        }
+        .top-bar .icon-btn:active { transform: scale(0.92); }
+        .top-bar .icon-btn:hover { background: var(--accent); color: #fff; }
 
-        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; background: var(--btn-neutral); color: var(--btn-neutral-text); }
+        /* ===== BUTTONS ===== */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            font-family: var(--font-body);
+            cursor: pointer;
+            transition: var(--transition-speed);
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+        }
         .btn:active { transform: scale(0.96); }
-        .btn-primary { background: var(--btn-primary); color: var(--btn-primary-text); }
+        .btn-primary {
+            background: var(--btn-primary);
+            color: var(--btn-primary-text);
+        }
         .btn-primary:hover { background: var(--accent-hover); }
-        .btn-neutral { background: var(--btn-neutral); color: var(--btn-neutral-text); }
+        .btn-neutral {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+        }
         .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
-        .btn-success { background: var(--success); color: #fff; }
-        .btn-danger { background: var(--danger); color: #fff; }
-        .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--border-color);
+            color: var(--text-secondary);
+        }
         .btn-sm { padding: 6px 14px; font-size: 12px; }
         .btn-block { width: 100%; padding: 14px; }
         
-        .screen { display: none; animation: fadeIn 0.25s ease; }
+        /* ===== SCREENS ===== */
+        .screen { display: none; animation: fadeIn 0.3s ease; }
         .screen.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         
-        .deck-grid { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
-        .deck-card { background: var(--bg-card); border-radius: 14px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--deck-border); box-shadow: 0 2px 8px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
-        .deck-card .info h3 { font-size: 17px; color: var(--text-primary); }
-        .deck-card .info p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--card-shadow);
+            transition: background var(--transition-speed), box-shadow var(--transition-speed);
+        }
+        .stats-bar .stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .stats-bar .stat .num {
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 15px;
+        }
+        .stats-bar .stat .num.due { color: var(--warning); }
+        .stats-bar .stat .num.mastered { color: var(--success); }
+        
+        /* ===== DECK LIST ===== */
+        .deck-grid { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+        .deck-card {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+            transition: all var(--transition-speed);
+            cursor: pointer;
+            border-left: 4px solid var(--deck-border);
+        }
+        .deck-card:active { transform: scale(0.98); }
+        .deck-card:hover { box-shadow: var(--card-shadow-hover); }
+        .deck-card .info h3 {
+            font-family: var(--font-header);
+            font-weight: 700;
+            font-size: 17px;
+            color: var(--text-primary);
+        }
+        .deck-card .info p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-weight: 500;
+        }
         .deck-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
         
-        .card-container { background: var(--card-bg); border-radius: 18px; padding: 30px 20px; min-height: 260px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; margin: 16px 0; box-shadow: 0 4px 20px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
-        .card-container .front { font-size: 22px; font-weight: 500; color: var(--text-primary); }
-        .card-container .back { font-size: 20px; color: var(--accent-light); margin-top: 12px; display: none; }
-        .card-container .back.show { display: block; }
-        .card-container .counter { font-size: 14px; color: var(--text-muted); margin-top: 16px; }
-        .card-container .card-tags { font-size: 12px; color: var(--text-muted); margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-        .card-container .card-tags span { background: var(--bg-secondary); padding: 2px 10px; border-radius: 12px; color: var(--text-secondary); }
+        /* ===== STUDY VIEW ===== */
+        .card-container {
+            background: var(--card-bg);
+            border-radius: 18px;
+            padding: 30px 20px;
+            min-height: 260px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            margin: 16px 0;
+            box-shadow: var(--card-shadow);
+            transition: all var(--transition-speed);
+            position: relative;
+            perspective: 800px;
+        }
+        .card-container .front {
+            font-family: var(--font-header);
+            font-weight: 700;
+            font-size: 22px;
+            color: var(--text-primary);
+        }
+        .card-container .back {
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 20px;
+            color: var(--accent-light);
+            margin-top: 12px;
+            display: none;
+        }
+        .card-container .back.show { display: block; animation: fadeIn 0.25s ease; }
+        .card-container .counter {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 16px;
+            font-weight: 500;
+        }
+        .card-container .card-tags {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 12px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .card-container .card-tags span {
+            background: var(--bg-secondary);
+            padding: 2px 10px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+        }
         
-        .interval-btns { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
-        .interval-btns .btn { padding: 14px 0; font-size: 13px; border-radius: 10px; background: var(--btn-neutral); color: var(--btn-neutral-text); transition: 0.2s; }
+        /* Progress bar */
+        .study-progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .study-progress-bar .fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .interval-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .interval-btns .btn {
+            padding: 14px 0;
+            font-size: 13px;
+            border-radius: 10px;
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+            font-weight: 600;
+            transition: var(--transition-speed);
+            font-family: var(--font-body);
+        }
         .interval-btns .btn:active { transform: scale(0.95); }
         .interval-btns .btn:hover { background: var(--btn-neutral-hover); color: #fff; }
         
-        .settings-group { background: var(--bg-card); border-radius: 14px; padding: 16px; margin: 12px 0; transition: background 0.3s; }
-        .settings-group label { display: block; font-size: 14px; color: var(--text-secondary); margin: 10px 0 4px; }
-        .settings-group input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); font-size: 15px; transition: background 0.3s, color 0.3s, border 0.3s; }
-        .settings-group input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        /* ===== SETTINGS ===== */
+        .settings-group {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 16px;
+            margin: 12px 0;
+            box-shadow: var(--card-shadow);
+            transition: all var(--transition-speed);
+        }
+        .settings-group .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .settings-group .group-header h3 {
+            font-family: var(--font-header);
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+        .settings-group .group-header .toggle-icon {
+            font-size: 18px;
+            color: var(--text-muted);
+            transition: transform var(--transition-speed);
+        }
+        .settings-group .group-header .toggle-icon.open { transform: rotate(180deg); }
+        .settings-group .group-content {
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            margin-top: 0;
+        }
+        .settings-group .group-content.open {
+            max-height: 2000px;
+            opacity: 1;
+            margin-top: 12px;
+        }
+        
+        .settings-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 10px 0 4px;
+            font-weight: 500;
+        }
+        .settings-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: var(--font-body);
+            transition: all var(--transition-speed);
+        }
+        .settings-group input:focus {
+            outline: 2px solid var(--accent);
+            border-color: transparent;
+        }
         .settings-group input[type="text"] { font-size: 14px; padding: 8px 12px; }
         .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .settings-divider { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
         
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--overlay-bg); backdrop-filter: blur(6px); display: none; justify-content: center; align-items: center; z-index: 999; padding: 20px; transition: background 0.3s; }
+        /* Deck interval rows inside settings */
+        .deck-interval-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .deck-interval-row input {
+            padding: 6px 8px;
+            font-size: 13px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            width: 100%;
+            text-align: center;
+            font-family: var(--font-body);
+        }
+        .deck-interval-row input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        .deck-interval-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 2px;
+            font-weight: 500;
+        }
+        
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--overlay-bg);
+            backdrop-filter: blur(6px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            padding: 20px;
+            transition: background var(--transition-speed);
+        }
         .modal-overlay.active { display: flex; }
-        .modal { background: var(--modal-bg); border-radius: 20px; padding: 28px 24px; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; animation: slideUp 0.25s ease; box-shadow: 0 8px 40px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
-        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal h2 { font-size: 20px; color: var(--text-primary); margin-bottom: 6px; }
-        .modal .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; }
-        .modal label { display: block; font-size: 14px; color: var(--text-secondary); margin: 12px 0 4px; }
-        .modal input, .modal textarea, .modal select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); font-size: 15px; font-family: inherit; resize: vertical; transition: background 0.3s, color 0.3s, border 0.3s; }
-        .modal input:focus, .modal textarea:focus, .modal select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        .modal {
+            background: var(--modal-bg);
+            border-radius: 20px;
+            padding: 28px 24px;
+            max-width: 440px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+            box-shadow: var(--card-shadow-hover);
+            transition: all var(--transition-speed);
+        }
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal h2 {
+            font-family: var(--font-header);
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .modal .sub {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+        .modal label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 12px 0 4px;
+            font-weight: 500;
+        }
+        .modal input, .modal textarea, .modal select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: var(--font-body);
+            resize: vertical;
+            transition: all var(--transition-speed);
+        }
+        .modal input:focus, .modal textarea:focus, .modal select:focus {
+            outline: 2px solid var(--accent);
+            border-color: transparent;
+        }
         .modal textarea { min-height: 60px; }
-        .modal .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+        .modal .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
         .modal .btn-row .btn { flex: 1; text-align: center; }
         
+        /* Color picker */
+        .color-picker {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .color-picker .color-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: var(--transition-speed);
+        }
+        .color-picker .color-option:active { transform: scale(0.9); }
+        .color-picker .color-option.selected {
+            border-color: var(--text-primary);
+            box-shadow: 0 0 0 2px var(--bg-primary);
+        }
+        
         .card-list-modal { max-height: 300px; overflow-y: auto; margin: 12px 0; }
-        .card-list-item { background: var(--bg-primary); padding: 10px 14px; border-radius: 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--text-primary); transition: background 0.3s; }
-        .card-list-item .card-tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
-        .card-list-item .card-tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
-        .card-list-item .del { color: var(--danger); cursor: pointer; padding: 4px 10px; border-radius: 8px; background: var(--bg-secondary); font-weight: 600; font-size: 14px; }
+        .card-list-item {
+            background: var(--bg-primary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: background var(--transition-speed);
+        }
+        .card-list-item .card-tags-sm {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .card-list-item .card-tags-sm span {
+            background: var(--bg-secondary);
+            padding: 1px 8px;
+            border-radius: 10px;
+        }
+        .card-list-item .del {
+            color: var(--danger);
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            font-weight: 600;
+            font-size: 14px;
+        }
         .card-list-item .del:active { opacity: 0.6; }
         
-        .fab-container { position: fixed; bottom: 24px; right: 20px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-        .fab { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 28px; font-weight: 300; cursor: pointer; box-shadow: 0 4px 16px var(--fab-shadow); transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex; align-items: center; justify-content: center; }
+        /* ===== FAB ===== */
+        .fab-container {
+            position: fixed;
+            bottom: 24px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .fab {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 28px;
+            font-weight: 300;
+            cursor: pointer;
+            box-shadow: 0 4px 16px var(--fab-shadow);
+            transition: var(--transition-speed);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .fab:active { transform: scale(0.9); }
         .fab.open { transform: rotate(45deg); background: var(--danger); }
         
-        .fab-menu { background: var(--bg-card); border-radius: 14px; padding: 8px 0; min-width: 210px; box-shadow: 0 8px 32px var(--shadow-color); transform: scale(0.8) translateY(10px); opacity: 0; pointer-events: none; transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid var(--border-color); }
-        .fab-menu.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
-        .fab-menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 18px; width: 100%; border: none; background: transparent; color: var(--text-primary); font-size: 14px; cursor: pointer; transition: 0.15s; font-family: inherit; }
+        .fab-menu {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 8px 0;
+            min-width: 210px;
+            box-shadow: var(--card-shadow-hover);
+            transform: scale(0.8) translateY(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition-speed);
+            border: 1px solid var(--border-color);
+        }
+        .fab-menu.open {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .fab-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: var(--font-body);
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition-speed);
+        }
         .fab-menu-item:active { background: var(--bg-secondary); }
         .fab-menu-item .icon { font-size: 18px; width: 24px; text-align: center; color: var(--text-secondary); }
         .fab-menu-item .label { flex: 1; text-align: left; }
         .fab-menu-divider { border: none; border-top: 1px solid var(--border-color); margin: 4px 12px; }
         
-        .search-result-item { background: var(--bg-primary); padding: 12px 14px; border-radius: 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--text-primary); transition: background 0.3s; }
-        .search-result-item .deck-name { font-size: 12px; color: var(--text-muted); }
-        .search-result-item .tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
-        .search-result-item .tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
+        /* ===== SEARCH ===== */
+        .search-result-item {
+            background: var(--bg-primary);
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: background var(--transition-speed);
+        }
+        .search-result-item .deck-name {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .search-result-item .tags-sm {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .search-result-item .tags-sm span {
+            background: var(--bg-secondary);
+            padding: 1px 8px;
+            border-radius: 10px;
+        }
         
         .empty-state { text-align: center; padding: 40px 0; color: var(--text-muted); }
         .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .mt-12 { margin-top: 12px; }
         .mb-8 { margin-bottom: 8px; }
-        .text-muted { color: var(--text-muted); font-size: 14px; }
+        .text-muted { color: var(--text-muted); font-size: 13px; font-weight: 500; }
         .text-center { text-align: center; }
         
-        .icon-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--text-secondary); transition: 0.2s; }
-        .icon-btn:active { transform: scale(0.92); }
-        .icon-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-        
-        .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--bg-card); color: var(--text-primary); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px var(--shadow-color); font-size: 14px; z-index: 200; opacity: 0; transition: 0.3s; pointer-events: none; text-align: center; max-width: 90%; }
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow-hover);
+            font-size: 14px;
+            font-family: var(--font-body);
+            font-weight: 500;
+            z-index: 200;
+            opacity: 0;
+            transition: var(--transition-speed);
+            pointer-events: none;
+            text-align: center;
+            max-width: 90%;
+        }
         .toast.show { opacity: 1; }
         
         .hidden-file-input { display: none; }
         
-        .share-link-box { background: var(--bg-primary); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 16px; word-break: break-all; text-align: center; margin: 8px 0; font-family: monospace; }
-        .drive-status { padding: 8px 12px; border-radius: 8px; margin: 4px 0; font-size: 13px; }
+        .share-link-box {
+            background: var(--bg-primary);
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            font-size: 14px;
+            word-break: break-all;
+            text-align: center;
+            margin: 8px 0;
+            font-family: monospace;
+        }
+        .drive-status {
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 4px 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
         .drive-status.connected { background: var(--success); color: #fff; }
         .drive-status.disconnected { background: var(--danger); color: #fff; }
         .drive-status.pending { background: var(--warning); color: #000; }
+        
+        .sync-info {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-weight: 500;
+        }
         
         @media (max-width: 400px) {
             .interval-btns { grid-template-columns: 1fr 1fr; }
             .settings-row { grid-template-columns: 1fr 1fr; }
             .deck-card { flex-direction: column; align-items: flex-start; gap: 10px; }
             .deck-card .actions { width: 100%; justify-content: flex-start; }
+            .stats-bar { flex-wrap: wrap; gap: 8px; }
+            .deck-interval-row { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -198,29 +715,32 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ===== TOP BAR ===== -->
 <div class="top-bar">
     <h1>Cjay<span>Cards</span></h1>
     <div class="right-group">
-        <span class="badge" id="dueBadge">0 due</span>
         <button class="icon-btn" onclick="openSearch()" aria-label="Search">🔍</button>
         <button class="icon-btn" onclick="toggleTheme()" id="themeToggle" aria-label="Toggle theme">🌙</button>
-        <button class="btn btn-neutral btn-sm" onclick="showScreen('home')">Home</button>
-        <button class="btn btn-neutral btn-sm" onclick="showScreen('settings')">Settings</button>
+        <button class="icon-btn" onclick="showScreen('home')" aria-label="Home">🏠</button>
+        <button class="icon-btn" onclick="showScreen('settings')" aria-label="Settings">⚙️</button>
     </div>
 </div>
 
+<!-- ===== SCREEN: HOME ===== -->
 <div id="screen-home" class="screen active">
-    <div class="flex-between">
-        <span class="text-muted">Your Decks</span>
-        <button class="btn btn-primary btn-sm" onclick="openModal('newDeck')">+ New Deck</button>
+    <div id="statsBar" class="stats-bar hidden">
+        <div class="stat">📚 <span class="num" id="totalCards">0</span> total</div>
+        <div class="stat">📝 <span class="num due" id="dueCards">0</span> due</div>
+        <div class="stat">✅ <span class="num mastered" id="masteredCards">0</span> mastered</div>
     </div>
     <div id="deckList" class="deck-grid"></div>
 </div>
 
+<!-- ===== SCREEN: STUDY ===== -->
 <div id="screen-study" class="screen">
     <div class="flex-between mb-8">
         <button class="btn btn-outline btn-sm" onclick="exitStudy()">← Back</button>
-        <span id="studyDeckName" class="text-muted" style="font-weight:500;"></span>
+        <span id="studyDeckName" class="text-muted" style="font-weight:600;"></span>
         <span id="studyProgress" class="text-muted" style="font-size:13px;"></span>
     </div>
     <div id="studyArea">
@@ -229,6 +749,7 @@
             <div class="back" id="cardBack">Answer</div>
             <div class="card-tags" id="cardTags"></div>
             <div class="counter" id="cardCounter"></div>
+            <div class="study-progress-bar"><div class="fill" id="studyProgressFill" style="width:0%"></div></div>
         </div>
         <div id="studyActions">
             <button class="btn btn-neutral btn-block" onclick="flipCard()">Reveal Answer</button>
@@ -237,73 +758,99 @@
         </div>
         <div id="studyComplete" class="hidden text-center" style="padding:30px 0;">
             <div style="font-size:48px; margin-bottom:12px;">🎉</div>
-            <h3 style="color:var(--text-primary);">All done for now!</h3>
+            <h3 style="color:var(--text-primary); font-family:var(--font-header);">All done for now!</h3>
             <p class="text-muted">You've reviewed all due cards in this deck.</p>
             <button class="btn btn-primary mt-12" onclick="exitStudy()">Back to Decks</button>
         </div>
     </div>
 </div>
 
+<!-- ===== SCREEN: SETTINGS ===== -->
 <div id="screen-settings" class="screen">
-    <div class="flex-between" style="margin-bottom:16px;">
-        <h2 style="color:var(--text-primary);">Settings</h2>
-    </div>
+    <h2 style="font-family:var(--font-header); font-weight:700; font-size:20px; color:var(--text-primary); margin-bottom:16px;">Settings</h2>
     
-    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Deck Intervals (days)</h3>
-    <div id="settingsList"></div>
-    
-    <hr class="settings-divider">
-    
-    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Button Labels</h3>
-    <p class="text-muted" style="margin-bottom:12px;">Customize what appears on each button.</p>
+    <!-- Deck Intervals -->
     <div class="settings-group">
-        <label>Label 1 (Again)</label>
-        <input type="text" id="labelAgain" value="Again" onchange="saveButtonLabels()">
-        <label>Label 2 (Hard)</label>
-        <input type="text" id="labelHard" value="Hard" onchange="saveButtonLabels()">
-        <label>Label 3 (Good)</label>
-        <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
-        <label>Label 4 (Easy)</label>
-        <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
-    </div>
-    
-    <hr class="settings-divider">
-    
-    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Google Drive Sync</h3>
-    <p class="text-muted" style="margin-bottom:12px;">Connect your Google Drive to sync data across devices.</p>
-    <div class="settings-group">
-        <label>Google Client ID</label>
-        <input type="text" id="googleClientId" placeholder="Paste your Google Client ID here..." onchange="saveGoogleClientId()">
-        <div style="margin-top:8px;">
-            <button class="btn btn-primary btn-sm" onclick="connectGoogleDrive()" id="connectDriveBtn">🔗 Connect Google Drive</button>
-            <button class="btn btn-success btn-sm" onclick="pushToDrive()" id="pushDriveBtn" disabled>📤 Push to Drive</button>
-            <button class="btn btn-neutral btn-sm" onclick="pullFromDrive()" id="pullDriveBtn" disabled>📥 Pull from Drive</button>
+        <div class="group-header" onclick="toggleGroup(this)">
+            <h3>Deck Intervals</h3>
+            <span class="toggle-icon">▼</span>
         </div>
-        <div id="driveStatus" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+        <div class="group-content">
+            <p class="text-muted" style="margin-bottom:8px;">Set custom intervals (in days) for each deck.</p>
+            <div id="settingsList"></div>
+        </div>
     </div>
     
-    <hr class="settings-divider">
-    
-    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Backup & Restore</h3>
-    <p class="text-muted" style="margin-bottom:12px;">Export your data as a JSON file or import a backup.</p>
+    <!-- Button Labels -->
     <div class="settings-group">
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-success btn-sm" onclick="exportBackup()">💾 Export Backup</button>
-            <button class="btn btn-neutral btn-sm" onclick="importBackup()">📂 Import Backup</button>
+        <div class="group-header" onclick="toggleGroup(this)">
+            <h3>Button Labels</h3>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="group-content">
+            <p class="text-muted" style="margin-bottom:8px;">Customize what appears on each button.</p>
+            <label>Label 1 (Again)</label>
+            <input type="text" id="labelAgain" value="Again" onchange="saveButtonLabels()">
+            <label>Label 2 (Hard)</label>
+            <input type="text" id="labelHard" value="Hard" onchange="saveButtonLabels()">
+            <label>Label 3 (Good)</label>
+            <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
+            <label>Label 4 (Easy)</label>
+            <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
+        </div>
+    </div>
+    
+    <!-- Google Drive Sync -->
+    <div class="settings-group">
+        <div class="group-header" onclick="toggleGroup(this)">
+            <h3>Google Drive Sync</h3>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="group-content">
+            <p class="text-muted" style="margin-bottom:8px;">Connect your Google Drive to sync data across devices.</p>
+            <label>Google Client ID</label>
+            <input type="text" id="googleClientId" placeholder="Paste your Google Client ID here..." onchange="saveGoogleClientId()">
+            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="connectGoogleDrive()" id="connectDriveBtn">🔗 Connect</button>
+                <button class="btn btn-success btn-sm" onclick="pushToDrive()" id="pushDriveBtn" disabled>📤 Push</button>
+                <button class="btn btn-neutral btn-sm" onclick="pullFromDrive()" id="pullDriveBtn" disabled>📥 Pull</button>
+            </div>
+            <div id="driveStatus" style="margin-top:8px;"></div>
+            <div id="syncInfo" class="sync-info"></div>
+        </div>
+    </div>
+    
+    <!-- Backup & Restore -->
+    <div class="settings-group">
+        <div class="group-header" onclick="toggleGroup(this)">
+            <h3>Backup & Restore</h3>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="group-content">
+            <p class="text-muted" style="margin-bottom:8px;">Export your data as a JSON file or import a backup.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-success btn-sm" onclick="exportBackup()">💾 Export</button>
+                <button class="btn btn-neutral btn-sm" onclick="importBackup()">📂 Import</button>
+            </div>
         </div>
     </div>
     
     <button class="btn btn-danger btn-block" style="margin-top:20px;" onclick="resetAllData()">Reset All Data</button>
 </div>
 
+<!-- ===== MODAL ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
     <div class="modal" id="modalContent"></div>
 </div>
 
+<!-- ===== FAB ===== -->
 <div class="fab-container">
     <div class="fab-menu" id="fabMenu">
         <button class="fab-menu-item" onclick="closeFab(); openModal('addCard', getSelectedDeckId())">
             <span class="icon">➕</span><span class="label">Add Card</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); openModal('newDeck')">
+            <span class="icon">🗂️</span><span class="label">New Deck</span>
         </button>
         <button class="fab-menu-item" onclick="closeFab(); openSearch()">
             <span class="icon">🔍</span><span class="label">Search Cards</span>
@@ -317,6 +864,13 @@
         </button>
         <button class="fab-menu-item" onclick="closeFab(); exportCSV()">
             <span class="icon">📤</span><span class="label">Export CSV</span>
+        </button>
+        <hr class="fab-menu-divider">
+        <button class="fab-menu-item" onclick="closeFab(); pushToDrive()">
+            <span class="icon">☁️</span><span class="label">Push to Drive</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); pullFromDrive()">
+            <span class="icon">☁️</span><span class="label">Pull from Drive</span>
         </button>
         <hr class="fab-menu-divider">
         <button class="fab-menu-item" onclick="closeFab(); resetProgress()">
@@ -337,6 +891,7 @@ const STORAGE_KEY = 'cjaycards_data';
 const LABELS_KEY = 'cjaycards_labels';
 const CLIENT_ID_KEY = 'cjaycards_google_client_id';
 const TOKEN_KEY = 'cjaycards_google_token';
+const SYNC_TIME_KEY = 'cjaycards_last_sync';
 
 function getDefaultData() {
     return { decks: {} };
@@ -363,6 +918,7 @@ function loadData() {
             for (const [id, deck] of Object.entries(parsed.decks)) {
                 if (!deck.intervals) deck.intervals = [0.0417, 1, 3, 7];
                 if (!deck.cards) deck.cards = [];
+                if (!deck.color) deck.color = '#2563eb';
                 deck.cards.forEach(c => { if (!c.tags) c.tags = []; });
             }
             return parsed;
@@ -382,6 +938,7 @@ function loadLabels() {
 function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     updateBadge();
+    renderHome();
 }
 
 function saveLabels() {
@@ -457,6 +1014,21 @@ function showToast(msg) {
 }
 
 // ============================================================
+// COLLAPSIBLE GROUPS
+// ============================================================
+function toggleGroup(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector('.toggle-icon');
+    if (content.classList.contains('open')) {
+        content.classList.remove('open');
+        icon.classList.remove('open');
+    } else {
+        content.classList.add('open');
+        icon.classList.add('open');
+    }
+}
+
+// ============================================================
 // FAB
 // ============================================================
 function toggleFab() {
@@ -496,11 +1068,31 @@ function loadGoogleToken() {
     return localStorage.getItem(TOKEN_KEY) || '';
 }
 
+function setLastSyncTime() {
+    localStorage.setItem(SYNC_TIME_KEY, new Date().toISOString());
+    updateSyncInfo();
+}
+
+function getLastSyncTime() {
+    return localStorage.getItem(SYNC_TIME_KEY) || null;
+}
+
+function updateSyncInfo() {
+    const el = document.getElementById('syncInfo');
+    if (!el) return;
+    const time = getLastSyncTime();
+    if (time) {
+        const d = new Date(time);
+        el.textContent = 'Last synced: ' + d.toLocaleString();
+    } else {
+        el.textContent = 'Not synced yet. Push or pull data.';
+    }
+}
+
 function setDriveStatus(msg, type) {
     const el = document.getElementById('driveStatus');
     if (!el) return;
-    el.textContent = msg;
-    el.className = 'drive-status ' + (type || '');
+    el.innerHTML = '<div class="drive-status ' + (type || '') + '">' + msg + '</div>';
 }
 
 function updateDriveButtons(connected) {
@@ -516,7 +1108,7 @@ function updateDriveButtons(connected) {
             connectBtn.textContent = '✅ Connected';
             connectBtn.className = 'btn btn-success btn-sm';
         } else {
-            connectBtn.textContent = '🔗 Connect Google Drive';
+            connectBtn.textContent = '🔗 Connect';
             connectBtn.className = 'btn btn-primary btn-sm';
         }
     }
@@ -530,13 +1122,12 @@ function connectGoogleDrive() {
     }
     localStorage.setItem(CLIENT_ID_KEY, clientId);
     
-    // Load Google Identity Services library
     if (typeof google === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.onload = function() { initGoogleDrive(); };
         script.onerror = function() {
-            showToast('Failed to load Google library. Check internet connection.');
+            showToast('Failed to load Google library.');
             setDriveStatus('❌ Failed to load Google library', 'disconnected');
         };
         document.head.appendChild(script);
@@ -559,8 +1150,9 @@ function initGoogleDrive() {
                     setDriveStatus('✅ Connected to Google Drive', 'connected');
                     updateDriveButtons(true);
                     showToast('Google Drive connected!');
+                    updateSyncInfo();
                 } else {
-                    setDriveStatus('❌ Connection failed: ' + (tokenResponse.error || 'Unknown error'), 'disconnected');
+                    setDriveStatus('❌ Connection failed', 'disconnected');
                     updateDriveButtons(false);
                 }
             },
@@ -570,6 +1162,53 @@ function initGoogleDrive() {
         console.error('Google init error:', err);
         setDriveStatus('❌ Error: ' + err.message, 'disconnected');
         updateDriveButtons(false);
+    }
+}
+
+// Helper: Find or create CjayCards folder
+async function getOrCreateDriveFolder(token) {
+    // Search for existing folder
+    const searchRes = await fetch(
+        "https://www.googleapis.com/drive/v3/files?q=name='CjayCards' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+        { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    const searchData = await searchRes.json();
+    
+    if (searchData.files && searchData.files.length > 0) {
+        return searchData.files[0].id;
+    }
+    
+    // Create folder if not exists
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: 'CjayCards',
+            mimeType: 'application/vnd.google-apps.folder'
+        })
+    });
+    const createData = await createRes.json();
+    return createData.id;
+}
+
+// Helper: Delete old backup files in folder
+async function deleteOldBackups(token, folderId) {
+    const searchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and '${folderId}' in parents and trashed=false`,
+        { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    const searchData = await searchRes.json();
+    
+    if (searchData.files) {
+        for (const file of searchData.files) {
+            await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+        }
     }
 }
 
@@ -588,30 +1227,34 @@ async function pushToDrive() {
     
     setDriveStatus('📤 Pushing to Drive...', 'pending');
     
-    const backupData = {
-        data: data,
-        labels: labels,
-        theme: getStoredTheme(),
-        exportedAt: new Date().toISOString()
-    };
-    
-    const jsonString = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const metadata = {
-        name: 'cjaycards_backup.json',
-        parents: ['root']
-    };
-    
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', blob);
-    
     try {
+        // Get or create folder
+        const folderId = await getOrCreateDriveFolder(token);
+        
+        // Delete old backups
+        await deleteOldBackups(token, folderId);
+        
+        const backupData = {
+            data: data,
+            labels: labels,
+            theme: getStoredTheme(),
+            exportedAt: new Date().toISOString()
+        };
+        
+        const jsonString = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const metadata = {
+            name: 'cjaycards_backup.json',
+            parents: [folderId]
+        };
+        
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', blob);
+        
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + token,
-            },
+            headers: { 'Authorization': 'Bearer ' + token },
             body: form
         });
         
@@ -627,8 +1270,10 @@ async function pushToDrive() {
         }
         
         const result = await response.json();
-        setDriveStatus('✅ Push successful! File ID: ' + result.id, 'connected');
+        setLastSyncTime();
+        setDriveStatus('✅ Push successful!', 'connected');
         showToast('Data pushed to Drive!');
+        updateSyncInfo();
         
     } catch (err) {
         console.error('Push error:', err);
@@ -647,51 +1292,35 @@ async function pullFromDrive() {
     setDriveStatus('📥 Pulling from Drive...', 'pending');
     
     try {
-        const searchResponse = await fetch(
-            "https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and trashed=false&orderBy=modifiedTime desc&pageSize=1",
-            {
-                headers: {
-                    'Authorization': 'Bearer ' + token,
-                }
-            }
+        // Get folder
+        const folderId = await getOrCreateDriveFolder(token);
+        
+        // Search for backup file
+        const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and '${folderId}' in parents and trashed=false`,
+            { headers: { 'Authorization': 'Bearer ' + token } }
         );
+        const searchData = await searchRes.json();
         
-        if (!searchResponse.ok) {
-            if (searchResponse.status === 401) {
-                saveGoogleToken('');
-                updateDriveButtons(false);
-                setDriveStatus('❌ Token expired. Please reconnect.', 'disconnected');
-                showToast('Token expired. Please reconnect.');
-                return;
-            }
-            throw new Error('Search failed (HTTP ' + searchResponse.status + ')');
-        }
-        
-        const searchResult = await searchResponse.json();
-        
-        if (!searchResult.files || searchResult.files.length === 0) {
+        if (!searchData.files || searchData.files.length === 0) {
             setDriveStatus('ℹ️ No backup found in Drive. Push data first.', '');
             showToast('No backup found in Drive.');
             return;
         }
         
-        const fileId = searchResult.files[0].id;
-        const fileModified = searchResult.files[0].modifiedTime;
+        const fileId = searchData.files[0].id;
+        const fileModified = searchData.files[0].modifiedTime;
         
-        const downloadResponse = await fetch(
+        const downloadRes = await fetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-            {
-                headers: {
-                    'Authorization': 'Bearer ' + token,
-                }
-            }
+            { headers: { 'Authorization': 'Bearer ' + token } }
         );
         
-        if (!downloadResponse.ok) {
-            throw new Error('Download failed (HTTP ' + downloadResponse.status + ')');
+        if (!downloadRes.ok) {
+            throw new Error('Download failed (HTTP ' + downloadRes.status + ')');
         }
         
-        const jsonString = await downloadResponse.text();
+        const jsonString = await downloadRes.text();
         const backupData = JSON.parse(jsonString);
         
         if (!backupData.data || !backupData.data.decks) {
@@ -722,8 +1351,10 @@ async function pullFromDrive() {
         saveData();
         renderHome();
         renderSettings();
-        setDriveStatus('✅ Pull successful! Imported ' + cardCount + ' cards from Drive.', 'connected');
+        setLastSyncTime();
+        setDriveStatus('✅ Pull successful! Imported ' + cardCount + ' cards.', 'connected');
         showToast('✅ Imported ' + cardCount + ' cards from Drive!');
+        updateSyncInfo();
         
     } catch (err) {
         console.error('Pull error:', err);
@@ -811,6 +1442,13 @@ function openModal(type, deckId, cardId) {
             <p class="sub">Create a new deck for a subject or topic.</p>
             <label>Deck Name</label>
             <input id="modalDeckName" placeholder="e.g. Anatomy, History, French" autofocus>
+            <label>Color</label>
+            <div class="color-picker" id="deckColorPicker">
+                ${['#2563eb','#dc2626','#16a34a','#eab308','#8b5cf6','#f97316','#ec4899','#14b8a6'].map(c => 
+                    `<div class="color-option ${c === '#2563eb' ? 'selected' : ''}" style="background:${c}" onclick="selectColor(this, '${c}')" data-color="${c}"></div>`
+                ).join('')}
+            </div>
+            <input type="hidden" id="selectedDeckColor" value="#2563eb">
             <div class="btn-row">
                 <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="confirmNewDeck()">Create</button>
@@ -901,6 +1539,15 @@ function openModal(type, deckId, cardId) {
         content.innerHTML = `
             <h2>${deck.name}</h2>
             <p class="sub">${deck.cards.length} cards total</p>
+            <label>Color</label>
+            <div class="color-picker" id="deckColorPicker">
+                ${['#2563eb','#dc2626','#16a34a','#eab308','#8b5cf6','#f97316','#ec4899','#14b8a6'].map(c => 
+                    `<div class="color-option ${c === deck.color ? 'selected' : ''}" style="background:${c}" onclick="selectColor(this, '${c}')" data-color="${c}"></div>`
+                ).join('')}
+            </div>
+            <input type="hidden" id="selectedDeckColor" value="${deck.color || '#2563eb'}">
+            <label>Deck Name</label>
+            <input id="modalDeckName" value="${deck.name}">
             <div class="card-list-modal">${cardHtml}</div>
             <div class="btn-row" style="flex-wrap:wrap;">
                 <button class="btn btn-neutral" style="flex:1;" onclick="closeModal();openModal('addCard','${deckId}')">+ Add Card</button>
@@ -980,6 +1627,12 @@ function openModal(type, deckId, cardId) {
     }
 }
 
+function selectColor(el, color) {
+    document.querySelectorAll('.color-option').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('selectedDeckColor').value = color;
+}
+
 function closeModal() {
     document.getElementById('modalOverlay').classList.remove('active');
 }
@@ -995,11 +1648,13 @@ function confirmNewDeck() {
         showToast('Please enter a deck name.');
         return;
     }
+    const color = document.getElementById('selectedDeckColor').value || '#2563eb';
     const id = generateId();
     data.decks[id] = { 
         name: deckName, 
         intervals: [0.0417, 1, 3, 7], 
-        cards: [] 
+        cards: [],
+        color: color
     };
     saveData();
     closeModal();
@@ -1144,15 +1799,40 @@ function openTagsOverview() {
 function renderHome() {
     const container = document.getElementById('deckList');
     const ids = Object.keys(data.decks);
+    
+    // Stats
+    let totalCards = 0;
+    let dueCards = 0;
+    let masteredCards = 0;
+    for (const [id, deck] of Object.entries(data.decks)) {
+        deck.cards.forEach(c => {
+            totalCards++;
+            if (isDue(c)) dueCards++;
+            // Simple mastery: if interval >= 14 days, consider mastered
+            if (c.step >= 4) masteredCards++;
+        });
+    }
+    
+    const statsBar = document.getElementById('statsBar');
+    if (totalCards > 0) {
+        statsBar.classList.remove('hidden');
+        document.getElementById('totalCards').textContent = totalCards;
+        document.getElementById('dueCards').textContent = dueCards;
+        document.getElementById('masteredCards').textContent = masteredCards;
+    } else {
+        statsBar.classList.add('hidden');
+    }
+    
     if (ids.length === 0) {
-        container.innerHTML = `<div class="empty-state"><div style="font-size:48px; margin-bottom:12px; opacity:0.3;">📚</div><p>No decks yet. Tap "+ New Deck"</p></div>`;
+        container.innerHTML = `<div class="empty-state"><div style="font-size:48px; margin-bottom:12px; opacity:0.3;">📚</div><p>No decks yet. Tap "+" to create one.</p></div>`;
         return;
     }
     container.innerHTML = ids.map(id => {
         const deck = data.decks[id];
         const due = deck.cards.filter(c => isDue(c)).length;
+        const color = deck.color || '#2563eb';
         return `
-            <div class="deck-card">
+            <div class="deck-card" style="border-left-color: ${color};">
                 <div class="info">
                     <h3>${deck.name}</h3>
                     <p>${due} due · ${deck.cards.length} total</p>
@@ -1172,7 +1852,6 @@ function updateBadge() {
     for (const id of Object.keys(data.decks)) {
         total += data.decks[id].cards.filter(c => isDue(c)).length;
     }
-    document.getElementById('dueBadge').textContent = total + ' due';
 }
 
 // ============================================================
@@ -1204,6 +1883,7 @@ function renderCard() {
     const complete = document.getElementById('studyComplete');
     const actions = document.getElementById('studyActions');
     const revealBtn = document.querySelector('#studyActions .btn-neutral');
+    const progressFill = document.getElementById('studyProgressFill');
     
     if (currentCardIndex >= studyQueue.length) {
         container.style.display = 'none';
@@ -1229,7 +1909,10 @@ function renderCard() {
         tags.style.display = 'none';
     }
     
-    counter.textContent = `${currentCardIndex+1} / ${studyQueue.length}`;
+    const total = studyQueue.length;
+    const done = currentCardIndex;
+    counter.textContent = `${done+1} / ${total}`;
+    progressFill.style.width = `${(done / total) * 100}%`;
     isFlipped = false;
     updateIntervalButtons();
 }
@@ -1297,14 +1980,15 @@ function renderSettings() {
     container.innerHTML = ids.map(id => {
         const deck = data.decks[id];
         const ints = deck.intervals;
+        const color = deck.color || '#2563eb';
         return `
-            <div class="settings-group">
-                <h3 style="color:var(--text-primary); margin-bottom:4px;">${deck.name}</h3>
-                <div class="settings-row">
-                    <div><label>Again</label><input type="number" step="0.01" value="${ints[0]}" data-deck="${id}" data-idx="0" class="interval-input"></div>
-                    <div><label>Hard</label><input type="number" step="0.01" value="${ints[1]}" data-deck="${id}" data-idx="1" class="interval-input"></div>
-                    <div><label>Good</label><input type="number" step="0.01" value="${ints[2]}" data-deck="${id}" data-idx="2" class="interval-input"></div>
-                    <div><label>Easy</label><input type="number" step="0.01" value="${ints[3]}" data-deck="${id}" data-idx="3" class="interval-input"></div>
+            <div style="margin-bottom:12px; border-left:3px solid ${color}; padding-left:10px;">
+                <div style="font-weight:600; font-size:14px; color:var(--text-primary); margin-bottom:4px; font-family:var(--font-header);">${deck.name}</div>
+                <div class="deck-interval-row">
+                    <div><input type="number" step="0.01" value="${ints[0]}" data-deck="${id}" data-idx="0" class="interval-input"><div class="deck-interval-label">Again</div></div>
+                    <div><input type="number" step="0.01" value="${ints[1]}" data-deck="${id}" data-idx="1" class="interval-input"><div class="deck-interval-label">Hard</div></div>
+                    <div><input type="number" step="0.01" value="${ints[2]}" data-deck="${id}" data-idx="2" class="interval-input"><div class="deck-interval-label">Good</div></div>
+                    <div><input type="number" step="0.01" value="${ints[3]}" data-deck="${id}" data-idx="3" class="interval-input"><div class="deck-interval-label">Easy</div></div>
                 </div>
             </div>
         `;
@@ -1335,8 +2019,9 @@ function renderSettings() {
         setDriveStatus('✅ Connected to Google Drive', 'connected');
     } else {
         updateDriveButtons(false);
-        setDriveStatus('ℹ️ Not connected. Click "Connect Google Drive".', '');
+        setDriveStatus('ℹ️ Not connected. Click "Connect".', '');
     }
+    updateSyncInfo();
 }
 
 function saveButtonLabels() {
@@ -1391,7 +2076,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
             let deckId = Object.keys(data.decks).find(id => data.decks[id].name === deckName);
             if (!deckId) {
                 deckId = generateId();
-                data.decks[deckId] = { name: deckName, intervals: [0.0417, 1, 3, 7], cards: [] };
+                data.decks[deckId] = { name: deckName, intervals: [0.0417, 1, 3, 7], cards: [], color: '#2563eb' };
             }
             data.decks[deckId].cards.push({
                 id: generateId(),
@@ -1465,7 +2150,8 @@ function confirmResetProgress() {
 // ============================================================
 function showScreen(screen) {
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-    document.getElementById('screen-' + screen).classList.add('active');
+    const target = document.getElementById('screen-' + screen);
+    if (target) target.classList.add('active');
     if (screen === 'home') renderHome();
     if (screen === 'settings') renderSettings();
 }
@@ -1483,6 +2169,7 @@ function resetAllData() {
 // BOOT
 // ============================================================
 renderHome();
+renderSettings();
 
 // Expose functions to global scope
 window.openModal = openModal;
@@ -1519,6 +2206,8 @@ window.saveGoogleClientId = saveGoogleClientId;
 window.connectGoogleDrive = connectGoogleDrive;
 window.pushToDrive = pushToDrive;
 window.pullFromDrive = pullFromDrive;
+window.toggleGroup = toggleGroup;
+window.selectColor = selectColor;
 </script>
 </body>
 </html>
