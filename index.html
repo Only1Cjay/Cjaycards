@@ -521,7 +521,6 @@
         
         .hidden-file-input { display: none; }
         
-        /* QR Code styling */
         .qr-container {
             display: flex;
             justify-content: center;
@@ -630,7 +629,7 @@
     <hr class="settings-divider">
     
     <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Share via Link (1-hour expiry)</h3>
-    <p class="text-muted" style="margin-bottom:12px;">Upload your data to Pastebin and get a shareable link that expires in 1 hour.</p>
+    <p class="text-muted" style="margin-bottom:12px;">Upload your data and get a shareable link that expires in 1 hour.</p>
     <div class="settings-group">
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-success btn-sm" onclick="shareBackup()">📤 Share Backup</button>
@@ -829,7 +828,7 @@ function closeFab() {
 }
 
 // ============================================================
-// SHARE VIA LINK (Option C)
+// SHARE VIA LINK (Using file.io)
 // ============================================================
 function setShareStatus(msg, type) {
     const el = document.getElementById('shareStatus');
@@ -841,14 +840,13 @@ function setShareStatus(msg, type) {
 function shareBackup() {
     closeFab();
     
-    // Check if there's data to share
     const cardCount = Object.keys(data.decks).reduce((acc, id) => acc + data.decks[id].cards.length, 0);
     if (cardCount === 0) {
         showToast('No data to share. Add some cards first!');
         return;
     }
     
-    setShareStatus('Uploading to Pastebin...', 'pending');
+    setShareStatus('Uploading to temp storage...', 'pending');
     
     const backupData = {
         data: data,
@@ -859,32 +857,26 @@ function shareBackup() {
     
     const jsonString = JSON.stringify(backupData, null, 2);
     
-    // Use Pastebin API with 1-hour expiry
-    // Note: In production, you'd want to use a proper Pastebin API key
-    // For this demo, we'll use a free pastebin-like service
-    
-    // Using Pastebin's anonymous paste API (no API key needed for public pastes)
     const formData = new FormData();
-    formData.append('api_dev_key', ''); // Empty for anonymous
-    formData.append('api_option', 'paste');
-    formData.append('api_paste_code', jsonString);
-    formData.append('api_paste_name', 'CjayCards Backup');
-    formData.append('api_paste_format', 'json');
-    formData.append('api_paste_expire_date', '1H'); // 1 hour expiry
+    formData.append('file', new Blob([jsonString], { type: 'application/json' }), 'cjaycards_backup.json');
+    formData.append('expires', '1h');
     
-    fetch('https://pastebin.com/api/api_post.php', {
+    fetch('https://file.io', {
         method: 'POST',
         body: formData
     })
-    .then(response => response.text())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Upload failed (HTTP ' + response.status + ')');
+        }
+        return response.json();
+    })
     .then(data => {
-        if (data.startsWith('https://pastebin.com/')) {
-            const pasteId = data.split('/').pop();
-            const shareLink = data;
+        if (data.success) {
+            const shareLink = data.link;
             
-            setShareStatus('✅ Share link ready!', 'synced');
+            setShareStatus('✅ Share link ready! (expires in 1 hour)', 'synced');
             
-            // Display the link
             const resultDiv = document.getElementById('shareResult');
             if (resultDiv) {
                 resultDiv.innerHTML = `
@@ -903,7 +895,7 @@ function shareBackup() {
             
             showToast('✅ Share link created!');
         } else {
-            throw new Error('Failed to create paste: ' + data);
+            throw new Error(data.message || 'Upload failed');
         }
     })
     .catch(error => {
@@ -924,7 +916,6 @@ function copyLink(link) {
 }
 
 function fallbackCopyLink(link) {
-    // Fallback for older browsers
     const textarea = document.createElement('textarea');
     textarea.value = link;
     document.body.appendChild(textarea);
@@ -942,7 +933,6 @@ function generateQR(link) {
     const container = document.getElementById('qrContainer');
     if (!container) return;
     
-    // Use a free QR code API
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
     
     container.innerHTML = `
@@ -958,7 +948,7 @@ function generateQR(link) {
 }
 
 // ============================================================
-// IMPORT FROM LINK
+// IMPORT FROM LINK (file.io)
 // ============================================================
 function openImportLink() {
     closeFab();
@@ -968,9 +958,9 @@ function openImportLink() {
     
     content.innerHTML = `
         <h2>Import from Link</h2>
-        <p class="sub">Enter the Pastebin link or code you received.</p>
-        <label>Pastebin Link or Code</label>
-        <input id="importLinkInput" placeholder="e.g. https://pastebin.com/abc123 or abc123">
+        <p class="sub">Enter the file.io link you received (expires in 1 hour).</p>
+        <label>Link or Code</label>
+        <input id="importLinkInput" placeholder="e.g. https://file.io/abc123xyz or abc123xyz">
         <div class="btn-row">
             <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
             <button class="btn btn-primary" onclick="confirmImportLink()">Import</button>
@@ -994,18 +984,16 @@ function confirmImportLink() {
         return;
     }
     
-    // Extract paste ID if full URL is provided
-    let pasteId = link;
-    if (link.includes('pastebin.com/')) {
+    let fileId = link;
+    if (link.includes('file.io/')) {
         const parts = link.split('/');
-        pasteId = parts[parts.length - 1];
+        fileId = parts[parts.length - 1];
     }
     
-    // Clean the ID
-    pasteId = pasteId.split('?')[0].split('#')[0].trim();
+    fileId = fileId.split('?')[0].split('#')[0].trim();
     
-    if (pasteId.length < 5) {
-        status.textContent = 'Invalid Pastebin ID. Please check the link.';
+    if (fileId.length < 5) {
+        status.textContent = 'Invalid link. Please check the URL.';
         status.className = 'error';
         return;
     }
@@ -1013,56 +1001,73 @@ function confirmImportLink() {
     status.textContent = 'Downloading data...';
     status.className = 'pending';
     
-    // Fetch from Pastebin raw URL
-    const rawUrl = `https://pastebin.com/raw/${pasteId}`;
+    const downloadUrl = `https://file.io/${fileId}`;
     
-    fetch(rawUrl)
+    fetch(downloadUrl)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Link expired or invalid (HTTP ' + response.status + ')');
+                if (response.status === 404) {
+                    throw new Error('Link expired or file not found (expires after 1 hour)');
+                }
+                throw new Error('Download failed (HTTP ' + response.status + ')');
             }
-            return response.text();
+            return response.json();
         })
-        .then(text => {
-            try {
-                const backupData = JSON.parse(text);
-                if (!backupData.data || !backupData.data.decks) {
-                    throw new Error('Invalid backup data format.');
-                }
-                
-                // Count cards
-                let cardCount = 0;
-                for (const [id, deck] of Object.entries(backupData.data.decks)) {
-                    cardCount += deck.cards ? deck.cards.length : 0;
-                }
-                
-                if (!confirm(`Replace all current data with imported backup?\n\nImported backup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} card(s)\n\nContinue?`)) {
-                    status.textContent = 'Import cancelled.';
-                    status.className = '';
-                    return;
-                }
-                
-                // Restore data
-                data = backupData.data;
-                if (backupData.labels) {
-                    labels = backupData.labels;
-                    saveLabels();
-                    document.getElementById('labelAgain').value = labels.again || 'Again';
-                    document.getElementById('labelHard').value = labels.hard || 'Hard';
-                    document.getElementById('labelGood').value = labels.good || 'Good';
-                    document.getElementById('labelEasy').value = labels.easy || 'Easy';
-                }
-                if (backupData.theme) applyTheme(backupData.theme);
-                
-                saveData();
-                renderHome();
-                renderSettings();
-                closeModal();
-                showToast(`✅ Imported ${cardCount} cards from link!`);
-                
-            } catch (e) {
-                throw new Error('Invalid data: ' + e.message);
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || 'Invalid response from file.io');
             }
+            
+            let fileContent = data.content || data.data || data;
+            
+            if (typeof fileContent === 'string' && fileContent.startsWith('data:application/json;base64,')) {
+                const base64 = fileContent.replace('data:application/json;base64,', '');
+                fileContent = atob(base64);
+            }
+            
+            if (fileContent.content) {
+                fileContent = fileContent.content;
+            }
+            
+            let backupData;
+            if (typeof fileContent === 'string') {
+                backupData = JSON.parse(fileContent);
+            } else {
+                backupData = fileContent;
+            }
+            
+            if (!backupData.data || !backupData.data.decks) {
+                throw new Error('Invalid backup data format.');
+            }
+            
+            let cardCount = 0;
+            for (const [id, deck] of Object.entries(backupData.data.decks)) {
+                cardCount += deck.cards ? deck.cards.length : 0;
+            }
+            
+            if (!confirm(`Replace all current data with imported backup?\n\nImported backup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} card(s)\n\nContinue?`)) {
+                status.textContent = 'Import cancelled.';
+                status.className = '';
+                return;
+            }
+            
+            data = backupData.data;
+            if (backupData.labels) {
+                labels = backupData.labels;
+                saveLabels();
+                document.getElementById('labelAgain').value = labels.again || 'Again';
+                document.getElementById('labelHard').value = labels.hard || 'Hard';
+                document.getElementById('labelGood').value = labels.good || 'Good';
+                document.getElementById('labelEasy').value = labels.easy || 'Easy';
+            }
+            if (backupData.theme) applyTheme(backupData.theme);
+            
+            saveData();
+            renderHome();
+            renderSettings();
+            closeModal();
+            showToast(`✅ Imported ${cardCount} cards from link!`);
+            
         })
         .catch(error => {
             console.error('Import error:', error);
