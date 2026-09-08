@@ -397,7 +397,7 @@
             background: var(--bg-card);
             border-radius: 14px;
             padding: 8px 0;
-            min-width: 200px;
+            min-width: 210px;
             box-shadow: 0 8px 32px var(--shadow-color);
             transform: scale(0.8) translateY(10px);
             opacity: 0;
@@ -521,6 +521,31 @@
         
         .hidden-file-input { display: none; }
         
+        /* QR Code styling */
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0;
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+        }
+        .qr-container img {
+            max-width: 200px;
+            height: auto;
+        }
+        .share-link-box {
+            background: var(--bg-primary);
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            font-size: 16px;
+            word-break: break-all;
+            text-align: center;
+            margin: 8px 0;
+            font-family: monospace;
+        }
+        
         @media (max-width: 400px) {
             .interval-btns { grid-template-columns: 1fr 1fr; }
             .settings-row { grid-template-columns: 1fr 1fr; }
@@ -600,6 +625,19 @@
         <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
         <label>Label 4 (Easy)</label>
         <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
+    </div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Share via Link (1-hour expiry)</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Upload your data to Pastebin and get a shareable link that expires in 1 hour.</p>
+    <div class="settings-group">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" onclick="shareBackup()">📤 Share Backup</button>
+            <button class="btn btn-neutral btn-sm" onclick="openImportLink()">📥 Import from Link</button>
+        </div>
+        <div id="shareStatus" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+        <div id="shareResult" style="margin-top:8px;"></div>
     </div>
     
     <hr class="settings-divider">
@@ -791,6 +829,250 @@ function closeFab() {
 }
 
 // ============================================================
+// SHARE VIA LINK (Option C)
+// ============================================================
+function setShareStatus(msg, type) {
+    const el = document.getElementById('shareStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = type || '';
+}
+
+function shareBackup() {
+    closeFab();
+    
+    // Check if there's data to share
+    const cardCount = Object.keys(data.decks).reduce((acc, id) => acc + data.decks[id].cards.length, 0);
+    if (cardCount === 0) {
+        showToast('No data to share. Add some cards first!');
+        return;
+    }
+    
+    setShareStatus('Uploading to Pastebin...', 'pending');
+    
+    const backupData = {
+        data: data,
+        labels: labels,
+        theme: getStoredTheme(),
+        exportedAt: new Date().toISOString()
+    };
+    
+    const jsonString = JSON.stringify(backupData, null, 2);
+    
+    // Use Pastebin API with 1-hour expiry
+    // Note: In production, you'd want to use a proper Pastebin API key
+    // For this demo, we'll use a free pastebin-like service
+    
+    // Using Pastebin's anonymous paste API (no API key needed for public pastes)
+    const formData = new FormData();
+    formData.append('api_dev_key', ''); // Empty for anonymous
+    formData.append('api_option', 'paste');
+    formData.append('api_paste_code', jsonString);
+    formData.append('api_paste_name', 'CjayCards Backup');
+    formData.append('api_paste_format', 'json');
+    formData.append('api_paste_expire_date', '1H'); // 1 hour expiry
+    
+    fetch('https://pastebin.com/api/api_post.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        if (data.startsWith('https://pastebin.com/')) {
+            const pasteId = data.split('/').pop();
+            const shareLink = data;
+            
+            setShareStatus('✅ Share link ready!', 'synced');
+            
+            // Display the link
+            const resultDiv = document.getElementById('shareResult');
+            if (resultDiv) {
+                resultDiv.innerHTML = `
+                    <div style="margin-top:12px; padding:12px; background:var(--bg-primary); border-radius:10px; border:1px solid var(--border-color);">
+                        <p style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">Share this link (expires in 1 hour):</p>
+                        <div class="share-link-box">${shareLink}</div>
+                        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-primary" onclick="copyLink('${shareLink}')">📋 Copy Link</button>
+                            <button class="btn btn-sm btn-neutral" onclick="window.open('${shareLink}', '_blank')">🔗 Open</button>
+                            <button class="btn btn-sm btn-success" onclick="generateQR('${shareLink}')">📱 Show QR</button>
+                        </div>
+                        <div id="qrContainer" style="margin-top:8px;"></div>
+                    </div>
+                `;
+            }
+            
+            showToast('✅ Share link created!');
+        } else {
+            throw new Error('Failed to create paste: ' + data);
+        }
+    })
+    .catch(error => {
+        console.error('Share error:', error);
+        setShareStatus('❌ Error: ' + error.message, 'error');
+        showToast('❌ Share failed: ' + error.message);
+    });
+}
+
+function copyLink(link) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link)
+            .then(() => showToast('✅ Link copied!'))
+            .catch(() => fallbackCopyLink(link));
+    } else {
+        fallbackCopyLink(link);
+    }
+}
+
+function fallbackCopyLink(link) {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = link;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        showToast('✅ Link copied!');
+    } catch (e) {
+        showToast('❌ Failed to copy. Please copy manually: ' + link);
+    }
+    document.body.removeChild(textarea);
+}
+
+function generateQR(link) {
+    const container = document.getElementById('qrContainer');
+    if (!container) return;
+    
+    // Use a free QR code API
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
+    
+    container.innerHTML = `
+        <div style="margin-top:8px;">
+            <div style="background:white; padding:8px; border-radius:8px; display:inline-block;">
+                <img src="${qrUrl}" alt="QR Code" style="width:160px; height:160px; display:block;">
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:4px;">Scan with your phone camera</p>
+        </div>
+    `;
+    
+    showToast('QR code generated!');
+}
+
+// ============================================================
+// IMPORT FROM LINK
+// ============================================================
+function openImportLink() {
+    closeFab();
+    
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    
+    content.innerHTML = `
+        <h2>Import from Link</h2>
+        <p class="sub">Enter the Pastebin link or code you received.</p>
+        <label>Pastebin Link or Code</label>
+        <input id="importLinkInput" placeholder="e.g. https://pastebin.com/abc123 or abc123">
+        <div class="btn-row">
+            <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmImportLink()">Import</button>
+        </div>
+        <div id="importStatus" style="margin-top:12px; font-size:13px; color:var(--text-muted);"></div>
+    `;
+    
+    overlay.classList.add('active');
+    setTimeout(() => document.getElementById('importLinkInput')?.focus(), 100);
+}
+
+function confirmImportLink() {
+    const input = document.getElementById('importLinkInput');
+    const status = document.getElementById('importStatus');
+    if (!input) return;
+    
+    let link = input.value.trim();
+    if (!link) {
+        status.textContent = 'Please enter a link or code.';
+        status.className = 'error';
+        return;
+    }
+    
+    // Extract paste ID if full URL is provided
+    let pasteId = link;
+    if (link.includes('pastebin.com/')) {
+        const parts = link.split('/');
+        pasteId = parts[parts.length - 1];
+    }
+    
+    // Clean the ID
+    pasteId = pasteId.split('?')[0].split('#')[0].trim();
+    
+    if (pasteId.length < 5) {
+        status.textContent = 'Invalid Pastebin ID. Please check the link.';
+        status.className = 'error';
+        return;
+    }
+    
+    status.textContent = 'Downloading data...';
+    status.className = 'pending';
+    
+    // Fetch from Pastebin raw URL
+    const rawUrl = `https://pastebin.com/raw/${pasteId}`;
+    
+    fetch(rawUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Link expired or invalid (HTTP ' + response.status + ')');
+            }
+            return response.text();
+        })
+        .then(text => {
+            try {
+                const backupData = JSON.parse(text);
+                if (!backupData.data || !backupData.data.decks) {
+                    throw new Error('Invalid backup data format.');
+                }
+                
+                // Count cards
+                let cardCount = 0;
+                for (const [id, deck] of Object.entries(backupData.data.decks)) {
+                    cardCount += deck.cards ? deck.cards.length : 0;
+                }
+                
+                if (!confirm(`Replace all current data with imported backup?\n\nImported backup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} card(s)\n\nContinue?`)) {
+                    status.textContent = 'Import cancelled.';
+                    status.className = '';
+                    return;
+                }
+                
+                // Restore data
+                data = backupData.data;
+                if (backupData.labels) {
+                    labels = backupData.labels;
+                    saveLabels();
+                    document.getElementById('labelAgain').value = labels.again || 'Again';
+                    document.getElementById('labelHard').value = labels.hard || 'Hard';
+                    document.getElementById('labelGood').value = labels.good || 'Good';
+                    document.getElementById('labelEasy').value = labels.easy || 'Easy';
+                }
+                if (backupData.theme) applyTheme(backupData.theme);
+                
+                saveData();
+                renderHome();
+                renderSettings();
+                closeModal();
+                showToast(`✅ Imported ${cardCount} cards from link!`);
+                
+            } catch (e) {
+                throw new Error('Invalid data: ' + e.message);
+            }
+        })
+        .catch(error => {
+            console.error('Import error:', error);
+            status.textContent = '❌ ' + error.message;
+            status.className = 'error';
+            showToast('❌ Import failed: ' + error.message);
+        });
+}
+
+// ============================================================
 // BACKUP SYSTEM
 // ============================================================
 function exportBackup() {
@@ -857,7 +1139,8 @@ document.getElementById('backupInput').addEventListener('change', function(e) {
 });
 
 // ============================================================
-// MODAL SYSTEM// ============================================================
+// MODAL SYSTEM
+// ============================================================
 function openModal(type, deckId, cardId) {
     const overlay = document.getElementById('modalOverlay');
     const content = document.getElementById('modalContent');
@@ -1558,6 +1841,11 @@ window.saveButtonLabels = saveButtonLabels;
 window.getSelectedDeckId = getSelectedDeckId;
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
+window.shareBackup = shareBackup;
+window.openImportLink = openImportLink;
+window.confirmImportLink = confirmImportLink;
+window.copyLink = copyLink;
+window.generateQR = generateQR;
 </script>
 </body>
 </html>
