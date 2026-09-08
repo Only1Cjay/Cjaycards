@@ -1,4 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CjayCards — Spaced Repetition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        
+        :root {
+            --bg-primary: #0a1628;
+            --bg-secondary: #0f1f3a;
+            --bg-card: #142a4a;
+            --bg-input: #0a1628;
+            --bg-modal: #0f1f3a;
+            --bg-fab: #1a3a5a;
+            --text-primary: #e8edf5;
+            --text-secondary: #8aa3c9;
+            --text-muted: #5a7a9f;
+            --border-color: #1a3a5a;
+            --shadow-color: rgba(0,0,0,0.5);
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-light: #3b82f6;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --warning: #eab308;
+            --btn-primary: #2563eb;
+            --btn-primary-text: #ffffff;
+            --btn-neutral: #1a3a5a;
+            --btn-neutral-text: #8aa3c9;
+            --btn-neutral-hover: #2563eb;
+            --card-bg: #0f1f3a;
+            --deck-border: #2563eb;
+            --overlay-bg: rgba(0,0,0,0.7);
+            --fab-shadow: rgba(37, 99, 235, 0.4);
+            --scrollbar-track: #0a1628;
+            --scrollbar-thumb: #1a3a5a;
+            --modal-bg: #0f1f3a;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f0f4fa;
+            --bg-secondary: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-input: #f0f4fa;
+            --bg-modal: #ffffff;
+            --bg-fab: #e2e8f0;
+            --text-primary: #0a1628;
+            --text-secondary: #1a3a5a;
+            --text-muted: #5a7a9f;
+            --border-color: #cbd5e1;
+            --shadow-color: rgba(0,0,0,0.1);
+            --btn-neutral: #e2e8f0;
+            --btn-neutral-text: #1a3a5a;
+            --btn-neutral-hover: #2563eb;
+            --card-bg: #ffffff;
+            --overlay-bg: rgba(0,0,0,0.4);
+            --fab-shadow: rgba(37, 99, 235, 0.3);
+            --scrollbar-track: #e2e8f0;
+            --scrollbar-thumb: #94a3b8;
+            --modal-bg: #ffffff;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 16px 16px 90px 16px;
+            transition: background 0.3s, color 0.3s;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+
+        .hidden { display: none !important; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
+        .top-bar h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+        .top-bar h1 span { color: var(--accent); }
+        .top-bar .badge { background: var(--bg-secondary); padding: 6px 14px; border-radius: 20px; font-size: 13px; color: var(--text-secondary); }
+        .top-bar .right-group { display: flex; align-items: center; gap: 6px; }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; background: var(--btn-neutral); color: var(--btn-neutral-text); }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: var(--btn-primary); color: var(--btn-primary-text); }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-neutral { background: var(--btn-neutral); color: var(--btn-neutral-text); }
+        .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        .btn-block { width: 100%; padding: 14px; }
+        
+        .screen { display: none; animation: fadeIn 0.25s ease; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .deck-grid { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+        .deck-card { background: var(--bg-card); border-radius: 14px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--deck-border); box-shadow: 0 2px 8px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
+        .deck-card .info h3 { font-size: 17px; color: var(--text-primary); }
+        .deck-card .info p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+        .deck-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .card-container { background: var(--card-bg); border-radius: 18px; padding: 30px 20px; min-height: 260px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; margin: 16px 0; box-shadow: 0 4px 20px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
+        .card-container .front { font-size: 22px; font-weight: 500; color: var(--text-primary); }
+        .card-container .back { font-size: 20px; color: var(--accent-light); margin-top: 12px; display: none; }
+        .card-container .back.show { display: block; }
+        .card-container .counter { font-size: 14px; color: var(--text-muted); margin-top: 16px; }
+        .card-container .card-tags { font-size: 12px; color: var(--text-muted); margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+        .card-container .card-tags span { background: var(--bg-secondary); padding: 2px 10px; border-radius: 12px; color: var(--text-secondary); }
+        
+        .interval-btns { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
+        .interval-btns .btn { padding: 14px 0; font-size: 13px; border-radius: 10px; background: var(--btn-neutral); color: var(--btn-neutral-text); transition: 0.2s; }
+        .interval-btns .btn:active { transform: scale(0.95); }
+        .interval-btns .btn:hover { background: var(--btn-neutral-hover); color: #fff; }
+        
+        .settings-group { background: var(--bg-card); border-radius: 14px; padding: 16px; margin: 12px 0; transition: background 0.3s; }
+        .settings-group label { display: block; font-size: 14px; color: var(--text-secondary); margin: 10px 0 4px; }
+        .settings-group input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); font-size: 15px; transition: background 0.3s, color 0.3s, border 0.3s; }
+        .settings-group input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        .settings-group input[type="text"] { font-size: 14px; padding: 8px 12px; }
+        .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .settings-divider { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--overlay-bg); backdrop-filter: blur(6px); display: none; justify-content: center; align-items: center; z-index: 999; padding: 20px; transition: background 0.3s; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--modal-bg); border-radius: 20px; padding: 28px 24px; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; animation: slideUp 0.25s ease; box-shadow: 0 8px 40px var(--shadow-color); transition: background 0.3s, box-shadow 0.3s; }
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal h2 { font-size: 20px; color: var(--text-primary); margin-bottom: 6px; }
+        .modal .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; }
+        .modal label { display: block; font-size: 14px; color: var(--text-secondary); margin: 12px 0 4px; }
+        .modal input, .modal textarea, .modal select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); font-size: 15px; font-family: inherit; resize: vertical; transition: background 0.3s, color 0.3s, border 0.3s; }
+        .modal input:focus, .modal textarea:focus, .modal select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        .modal textarea { min-height: 60px; }
+        .modal .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+        .modal .btn-row .btn { flex: 1; text-align: center; }
+        
+        .card-list-modal { max-height: 300px; overflow-y: auto; margin: 12px 0; }
+        .card-list-item { background: var(--bg-primary); padding: 10px 14px; border-radius: 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--text-primary); transition: background 0.3s; }
+        .card-list-item .card-tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
+        .card-list-item .card-tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
+        .card-list-item .del { color: var(--danger); cursor: pointer; padding: 4px 10px; border-radius: 8px; background: var(--bg-secondary); font-weight: 600; font-size: 14px; }
+        .card-list-item .del:active { opacity: 0.6; }
+        
+        .fab-container { position: fixed; bottom: 24px; right: 20px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+        .fab { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 28px; font-weight: 300; cursor: pointer; box-shadow: 0 4px 16px var(--fab-shadow); transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex; align-items: center; justify-content: center; }
+        .fab:active { transform: scale(0.9); }
+        .fab.open { transform: rotate(45deg); background: var(--danger); }
+        
+        .fab-menu { background: var(--bg-card); border-radius: 14px; padding: 8px 0; min-width: 210px; box-shadow: 0 8px 32px var(--shadow-color); transform: scale(0.8) translateY(10px); opacity: 0; pointer-events: none; transition: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid var(--border-color); }
+        .fab-menu.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
+        .fab-menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 18px; width: 100%; border: none; background: transparent; color: var(--text-primary); font-size: 14px; cursor: pointer; transition: 0.15s; font-family: inherit; }
+        .fab-menu-item:active { background: var(--bg-secondary); }
+        .fab-menu-item .icon { font-size: 18px; width: 24px; text-align: center; color: var(--text-secondary); }
+        .fab-menu-item .label { flex: 1; text-align: left; }
+        .fab-menu-divider { border: none; border-top: 1px solid var(--border-color); margin: 4px 12px; }
+        
+        .search-result-item { background: var(--bg-primary); padding: 12px 14px; border-radius: 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--text-primary); transition: background 0.3s; }
+        .search-result-item .deck-name { font-size: 12px; color: var(--text-muted); }
+        .search-result-item .tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
+        .search-result-item .tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
+        
+        .empty-state { text-align: center; padding: 40px 0; color: var(--text-muted); }
+        .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .mt-12 { margin-top: 12px; }
+        .mb-8 { margin-bottom: 8px; }
+        .text-muted { color: var(--text-muted); font-size: 14px; }
+        .text-center { text-align: center; }
+        
+        .icon-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--text-secondary); transition: 0.2s; }
+        .icon-btn:active { transform: scale(0.92); }
+        .icon-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        
+        .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--bg-card); color: var(--text-primary); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px var(--shadow-color); font-size: 14px; z-index: 200; opacity: 0; transition: 0.3s; pointer-events: none; text-align: center; max-width: 90%; }
+        .toast.show { opacity: 1; }
+        
+        .hidden-file-input { display: none; }
+        
+        .share-link-box { background: var(--bg-primary); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 16px; word-break: break-all; text-align: center; margin: 8px 0; font-family: monospace; }
+        .drive-status { padding: 8px 12px; border-radius: 8px; margin: 4px 0; font-size: 13px; }
+        .drive-status.connected { background: var(--success); color: #fff; }
+        .drive-status.disconnected { background: var(--danger); color: #fff; }
+        .drive-status.pending { background: var(--warning); color: #000; }
+        
+        @media (max-width: 400px) {
+            .interval-btns { grid-template-columns: 1fr 1fr; }
+            .settings-row { grid-template-columns: 1fr 1fr; }
+            .deck-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .deck-card .actions { width: 100%; justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="top-bar">
+    <h1>Cjay<span>Cards</span></h1>
+    <div class="right-group">
+        <span class="badge" id="dueBadge">0 due</span>
+        <button class="icon-btn" onclick="openSearch()" aria-label="Search">🔍</button>
+        <button class="icon-btn" onclick="toggleTheme()" id="themeToggle" aria-label="Toggle theme">🌙</button>
+        <button class="btn btn-neutral btn-sm" onclick="showScreen('home')">Home</button>
+        <button class="btn btn-neutral btn-sm" onclick="showScreen('settings')">Settings</button>
+    </div>
+</div>
+
+<div id="screen-home" class="screen active">
+    <div class="flex-between">
+        <span class="text-muted">Your Decks</span>
+        <button class="btn btn-primary btn-sm" onclick="openModal('newDeck')">+ New Deck</button>
+    </div>
+    <div id="deckList" class="deck-grid"></div>
+</div>
+
+<div id="screen-study" class="screen">
+    <div class="flex-between mb-8">
+        <button class="btn btn-outline btn-sm" onclick="exitStudy()">← Back</button>
+        <span id="studyDeckName" class="text-muted" style="font-weight:500;"></span>
+        <span id="studyProgress" class="text-muted" style="font-size:13px;"></span>
+    </div>
+    <div id="studyArea">
+        <div class="card-container" id="cardContainer">
+            <div class="front" id="cardFront">Loading...</div>
+            <div class="back" id="cardBack">Answer</div>
+            <div class="card-tags" id="cardTags"></div>
+            <div class="counter" id="cardCounter"></div>
+        </div>
+        <div id="studyActions">
+            <button class="btn btn-neutral btn-block" onclick="flipCard()">Reveal Answer</button>
+            <div class="interval-btns hidden" id="intervalBtns"></div>
+            <button class="btn btn-outline btn-sm btn-block" style="margin-top:8px;" onclick="skipCard()">Skip for now</button>
+        </div>
+        <div id="studyComplete" class="hidden text-center" style="padding:30px 0;">
+            <div style="font-size:48px; margin-bottom:12px;">🎉</div>
+            <h3 style="color:var(--text-primary);">All done for now!</h3>
+            <p class="text-muted">You've reviewed all due cards in this deck.</p>
+            <button class="btn btn-primary mt-12" onclick="exitStudy()">Back to Decks</button>
+        </div>
+    </div>
+</div>
+
+<div id="screen-settings" class="screen">
+    <div class="flex-between" style="margin-bottom:16px;">
+        <h2 style="color:var(--text-primary);">Settings</h2>
+    </div>
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Deck Intervals (days)</h3>
+    <div id="settingsList"></div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Button Labels</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Customize what appears on each button.</p>
+    <div class="settings-group">
+        <label>Label 1 (Again)</label>
+        <input type="text" id="labelAgain" value="Again" onchange="saveButtonLabels()">
+        <label>Label 2 (Hard)</label>
+        <input type="text" id="labelHard" value="Hard" onchange="saveButtonLabels()">
+        <label>Label 3 (Good)</label>
+        <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
+        <label>Label 4 (Easy)</label>
+        <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
+    </div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Google Drive Sync</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Connect your Google Drive to sync data across devices.</p>
+    <div class="settings-group">
+        <label>Google Client ID</label>
+        <input type="text" id="googleClientId" placeholder="Paste your Google Client ID here..." onchange="saveGoogleClientId()">
+        <div style="margin-top:8px;">
+            <button class="btn btn-primary btn-sm" onclick="connectGoogleDrive()" id="connectDriveBtn">🔗 Connect Google Drive</button>
+            <button class="btn btn-success btn-sm" onclick="pushToDrive()" id="pushDriveBtn" disabled>📤 Push to Drive</button>
+            <button class="btn btn-neutral btn-sm" onclick="pullFromDrive()" id="pullDriveBtn" disabled>📥 Pull from Drive</button>
+        </div>
+        <div id="driveStatus" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+    </div>
+    
+    <hr class="settings-divider">
+    
+    <h3 style="color:var(--text-secondary); font-size:15px; margin:16px 0 8px;">Backup & Restore</h3>
+    <p class="text-muted" style="margin-bottom:12px;">Export your data as a JSON file or import a backup.</p>
+    <div class="settings-group">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" onclick="exportBackup()">💾 Export Backup</button>
+            <button class="btn btn-neutral btn-sm" onclick="importBackup()">📂 Import Backup</button>
+        </div>
+    </div>
+    
+    <button class="btn btn-danger btn-block" style="margin-top:20px;" onclick="resetAllData()">Reset All Data</button>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="fab-container">
+    <div class="fab-menu" id="fabMenu">
+        <button class="fab-menu-item" onclick="closeFab(); openModal('addCard', getSelectedDeckId())">
+            <span class="icon">➕</span><span class="label">Add Card</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); openSearch()">
+            <span class="icon">🔍</span><span class="label">Search Cards</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); openTagsOverview()">
+            <span class="icon">🏷️</span><span class="label">Tags Overview</span>
+        </button>
+        <hr class="fab-menu-divider">
+        <button class="fab-menu-item" onclick="closeFab(); importCSV()">
+            <span class="icon">📥</span><span class="label">Import CSV</span>
+        </button>
+        <button class="fab-menu-item" onclick="closeFab(); exportCSV()">
+            <span class="icon">📤</span><span class="label">Export CSV</span>
+        </button>
+        <hr class="fab-menu-divider">
+        <button class="fab-menu-item" onclick="closeFab(); resetProgress()">
+            <span class="icon">🔄</span><span class="label">Reset Progress</span>
+        </button>
+    </div>
+    <button class="fab" id="fabButton" onclick="toggleFab()">+</button>
+</div>
+
+<input type="file" id="fileInput" class="hidden-file-input" accept=".csv">
+<input type="file" id="backupInput" class="hidden-file-input" accept=".json">
+
 <script>
+// ============================================================
+// DATA LAYER
+// ============================================================
+const STORAGE_KEY = 'cjaycards_data';
+const LABELS_KEY = 'cjaycards_labels';
+const CLIENT_ID_KEY = 'cjaycards_google_client_id';
+const TOKEN_KEY = 'cjaycards_google_token';
+
+function getDefaultData() {
+    return { decks: {} };
+}
+
+function getDefaultLabels() {
+    return { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
+}
+
+let data = loadData();
+let labels = loadLabels();
+let currentDeckId = null;
+let currentCardIndex = 0;
+let studyQueue = [];
+let isFlipped = false;
+let selectedDeckId = null;
+let tokenClient = null;
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            for (const [id, deck] of Object.entries(parsed.decks)) {
+                if (!deck.intervals) deck.intervals = [0.0417, 1, 3, 7];
+                if (!deck.cards) deck.cards = [];
+                deck.cards.forEach(c => { if (!c.tags) c.tags = []; });
+            }
+            return parsed;
+        }
+    } catch (e) {}
+    return getDefaultData();
+}
+
+function loadLabels() {
+    try {
+        const raw = localStorage.getItem(LABELS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return getDefaultLabels();
+}
+
+function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    updateBadge();
+}
+
+function saveLabels() {
+    localStorage.setItem(LABELS_KEY, JSON.stringify(labels));
+}
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function today() { return new Date().toDateString(); }
+function daysFromNow(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toDateString(); }
+function isDue(card) { return new Date(card.dueDate) <= new Date(); }
+
+function getIntervalDisplay(days) {
+    if (days < 1) {
+        const hours = Math.round(days * 24);
+        return hours + 'h';
+    } else if (days < 30) {
+        return days + 'd';
+    } else {
+        const months = Math.round(days / 30);
+        return months + 'mo';
+    }
+}
+
+function getButtonLabel(index) {
+    const map = ['again', 'hard', 'good', 'easy'];
+    return labels[map[index]] || map[index];
+}
+
+function getSelectedDeckId() {
+    if (selectedDeckId && data.decks[selectedDeckId]) {
+        return selectedDeckId;
+    }
+    const ids = Object.keys(data.decks);
+    if (ids.length > 0) {
+        selectedDeckId = ids[0];
+        return ids[0];
+    }
+    return null;
+}
+
+// ============================================================
+// THEME
+// ============================================================
+function getStoredTheme() {
+    return localStorage.getItem('cjaycards_theme') || 'dark';
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cjaycards_theme', theme);
+    document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
+function toggleTheme() {
+    const current = getStoredTheme();
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+applyTheme(getStoredTheme());
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimeout;
+
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// FAB
+// ============================================================
+function toggleFab() {
+    const menu = document.getElementById('fabMenu');
+    const btn = document.getElementById('fabButton');
+    menu.classList.toggle('open');
+    btn.classList.toggle('open');
+}
+
+function closeFab() {
+    const menu = document.getElementById('fabMenu');
+    const btn = document.getElementById('fabButton');
+    menu.classList.remove('open');
+    btn.classList.remove('open');
+}
+
 // ============================================================
 // GOOGLE DRIVE SYNC
 // ============================================================
@@ -30,14 +504,21 @@ function setDriveStatus(msg, type) {
 }
 
 function updateDriveButtons(connected) {
-    document.getElementById('pushDriveBtn').disabled = !connected;
-    document.getElementById('pullDriveBtn').disabled = !connected;
-    if (connected) {
-        document.getElementById('connectDriveBtn').textContent = '✅ Connected';
-        document.getElementById('connectDriveBtn').className = 'btn btn-success btn-sm';
-    } else {
-        document.getElementById('connectDriveBtn').textContent = '🔗 Connect Google Drive';
-        document.getElementById('connectDriveBtn').className = 'btn btn-primary btn-sm';
+    const pushBtn = document.getElementById('pushDriveBtn');
+    const pullBtn = document.getElementById('pullDriveBtn');
+    const connectBtn = document.getElementById('connectDriveBtn');
+    
+    if (pushBtn) pushBtn.disabled = !connected;
+    if (pullBtn) pullBtn.disabled = !connected;
+    
+    if (connectBtn) {
+        if (connected) {
+            connectBtn.textContent = '✅ Connected';
+            connectBtn.className = 'btn btn-success btn-sm';
+        } else {
+            connectBtn.textContent = '🔗 Connect Google Drive';
+            connectBtn.className = 'btn btn-primary btn-sm';
+        }
     }
 }
 
@@ -53,7 +534,11 @@ function connectGoogleDrive() {
     if (typeof google === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
-        script.onload = initGoogleDrive;
+        script.onload = function() { initGoogleDrive(); };
+        script.onerror = function() {
+            showToast('Failed to load Google library. Check internet connection.');
+            setDriveStatus('❌ Failed to load Google library', 'disconnected');
+        };
         document.head.appendChild(script);
     } else {
         initGoogleDrive();
@@ -68,7 +553,7 @@ function initGoogleDrive() {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
             scope: 'https://www.googleapis.com/auth/drive.file',
-            callback: (tokenResponse) => {
+            callback: function(tokenResponse) {
                 if (tokenResponse.access_token) {
                     saveGoogleToken(tokenResponse.access_token);
                     setDriveStatus('✅ Connected to Google Drive', 'connected');
@@ -80,8 +565,6 @@ function initGoogleDrive() {
                 }
             },
         });
-        
-        // Request token
         tokenClient.requestAccessToken();
     } catch (err) {
         console.error('Google init error:', err);
@@ -134,7 +617,6 @@ async function pushToDrive() {
         
         if (!response.ok) {
             if (response.status === 401) {
-                // Token expired, reconnect
                 saveGoogleToken('');
                 updateDriveButtons(false);
                 setDriveStatus('❌ Token expired. Please reconnect.', 'disconnected');
@@ -165,7 +647,6 @@ async function pullFromDrive() {
     setDriveStatus('📥 Pulling from Drive...', 'pending');
     
     try {
-        // Search for the backup file
         const searchResponse = await fetch(
             "https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and trashed=false&orderBy=modifiedTime desc&pageSize=1",
             {
@@ -197,7 +678,6 @@ async function pullFromDrive() {
         const fileId = searchResult.files[0].id;
         const fileModified = searchResult.files[0].modifiedTime;
         
-        // Download the file
         const downloadResponse = await fetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
             {
@@ -844,13 +1324,11 @@ function renderSettings() {
     document.getElementById('labelGood').value = saved.good || 'Good';
     document.getElementById('labelEasy').value = saved.easy || 'Easy';
     
-    // Load Google Client ID
     const clientId = loadGoogleClientId();
     if (clientId) {
         document.getElementById('googleClientId').value = clientId;
     }
     
-    // Check if token exists
     const token = loadGoogleToken();
     if (token) {
         updateDriveButtons(true);
