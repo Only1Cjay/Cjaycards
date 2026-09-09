@@ -112,8 +112,8 @@
             background: var(--bg-secondary);
             border: none;
             border-radius: 50%;
-            width: 34px;
-            height: 34px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -122,6 +122,7 @@
             color: var(--text-secondary);
             transition: var(--transition-speed);
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         .top-bar .icon-btn:active { transform: scale(0.9); background: var(--accent); color: #fff; }
 
@@ -215,10 +216,15 @@
             text-align: center;
             margin: 16px 0;
             box-shadow: var(--card-shadow);
-            transition: all var(--transition-speed);
+            transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed);
             position: relative;
             perspective: 800px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
+        .card-container:active { transform: scale(0.98); box-shadow: var(--card-shadow); }
         .card-container .front {
             font-family: var(--font-header);
             font-weight: 700;
@@ -1171,11 +1177,10 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => {
-            const input = document.getElementById('modalDeckName');
-            if (input) input.focus();
-            setupModalButtons('newDeck');
-        }, 100);
+        setupModalButtons('newDeck');
+        setupColorPicker();
+        const newDeckInput = document.getElementById('modalDeckName');
+        if (newDeckInput) newDeckInput.focus();
         return;
     }
     
@@ -1202,11 +1207,9 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => {
-            const input = document.getElementById('modalFront');
-            if (input) input.focus();
-            setupModalButtons('addCard', deckId);
-        }, 100);
+        setupModalButtons('addCard', deckId);
+        const addCardInput = document.getElementById('modalFront');
+        if (addCardInput) addCardInput.focus();
         return;
     }
     
@@ -1230,11 +1233,9 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => {
-            const input = document.getElementById('modalFront');
-            if (input) input.focus();
-            setupModalButtons('editCard', deckId, cardId);
-        }, 100);
+        setupModalButtons('editCard', deckId, cardId);
+        const editCardInput = document.getElementById('modalFront');
+        if (editCardInput) editCardInput.focus();
         return;
     }
     
@@ -1279,11 +1280,9 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => {
-            setupModalButtons('manageDeck', deckId);
-            setupCardListActions(deckId);
-            setupColorPicker();
-        }, 100);
+        setupModalButtons('manageDeck', deckId);
+        setupCardListActions(deckId);
+        setupColorPicker();
         return;
     }
     
@@ -1298,15 +1297,13 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => {
-            const input = document.getElementById('searchInput');
-            if (input) {
-                input.addEventListener('input', liveSearch);
-                liveSearch();
-                input.focus();
-            }
-            setupModalButtons('search');
-        }, 100);
+        setupModalButtons('search');
+        const searchInputEl = document.getElementById('searchInput');
+        if (searchInputEl) {
+            searchInputEl.addEventListener('input', liveSearch);
+            liveSearch();
+            searchInputEl.focus();
+        }
         return;
     }
     
@@ -1338,7 +1335,7 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => setupModalButtons('tagsOverview'), 100);
+        setupModalButtons('tagsOverview');
         return;
     }
     
@@ -1359,7 +1356,7 @@ function openModal(type, deckId, cardId) {
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => setupModalButtons('resetProgress'), 100);
+        setupModalButtons('resetProgress');
         return;
     }
 }
@@ -1953,6 +1950,7 @@ function bindEvents() {
     // Study
     document.getElementById('exitStudyBtn').addEventListener('click', exitStudy);
     document.getElementById('flipCardBtn').addEventListener('click', flipCard);
+    document.getElementById('cardContainer').addEventListener('click', flipCard);
     document.getElementById('skipCardBtn').addEventListener('click', skipCard);
     document.getElementById('studyCompleteBtn').addEventListener('click', exitStudy);
     
