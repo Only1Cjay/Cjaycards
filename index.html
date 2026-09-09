@@ -44,7 +44,7 @@
             --font-body: 'Inter', sans-serif;
             --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
             --card-shadow-hover: 0 6px 24px rgba(0,0,0,0.4);
-            --transition-speed: 0.25s;
+            --transition-speed: 0.2s;
         }
 
         [data-theme="light"] {
@@ -81,6 +81,7 @@
             padding: 16px 16px 90px 16px;
             transition: background var(--transition-speed), color var(--transition-speed);
             overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
@@ -88,7 +89,6 @@
 
         .hidden { display: none !important; }
         
-        /* ===== TOP BAR ===== */
         .top-bar {
             display: flex;
             justify-content: space-between;
@@ -106,26 +106,25 @@
         .top-bar .right-group {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
         .top-bar .icon-btn {
             background: var(--bg-secondary);
             border: none;
             border-radius: 50%;
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 15px;
             color: var(--text-secondary);
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
-        .top-bar .icon-btn:active { transform: scale(0.92); }
-        .top-bar .icon-btn:hover { background: var(--accent); color: #fff; }
+        .top-bar .icon-btn:active { transform: scale(0.9); background: var(--accent); color: #fff; }
 
-        /* ===== BUTTONS ===== */
         .btn {
             padding: 10px 20px;
             border: none;
@@ -137,40 +136,27 @@
             transition: var(--transition-speed);
             background: var(--btn-neutral);
             color: var(--btn-neutral-text);
+            touch-action: manipulation;
+            position: relative;
         }
         .btn:active { transform: scale(0.96); }
         .btn-primary {
             background: var(--btn-primary);
             color: var(--btn-primary-text);
         }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-neutral {
-            background: var(--btn-neutral);
-            color: var(--btn-neutral-text);
-        }
-        .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
-        .btn-success {
-            background: var(--success);
-            color: #fff;
-        }
-        .btn-danger {
-            background: var(--danger);
-            color: #fff;
-        }
-        .btn-outline {
-            background: transparent;
-            border: 1.5px solid var(--border-color);
-            color: var(--text-secondary);
-        }
+        .btn-primary:active { background: var(--accent-hover); }
+        .btn-neutral { background: var(--btn-neutral); color: var(--btn-neutral-text); }
+        .btn-neutral:active { background: var(--btn-neutral-hover); color: #fff; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
         .btn-sm { padding: 6px 14px; font-size: 12px; }
         .btn-block { width: 100%; padding: 14px; }
         
-        /* ===== SCREENS ===== */
-        .screen { display: none; animation: fadeIn 0.3s ease; }
+        .screen { display: none; animation: fadeIn 0.25s ease; }
         .screen.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* ===== STATS BAR ===== */
         .stats-bar {
             display: flex;
             gap: 16px;
@@ -189,15 +175,10 @@
             color: var(--text-secondary);
             font-weight: 500;
         }
-        .stats-bar .stat .num {
-            font-weight: 700;
-            color: var(--text-primary);
-            font-size: 15px;
-        }
+        .stats-bar .stat .num { font-weight: 700; color: var(--text-primary); font-size: 15px; }
         .stats-bar .stat .num.due { color: var(--warning); }
         .stats-bar .stat .num.mastered { color: var(--success); }
         
-        /* ===== DECK LIST ===== */
         .deck-grid { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
         .deck-card {
             background: var(--bg-card);
@@ -210,24 +191,19 @@
             transition: all var(--transition-speed);
             cursor: pointer;
             border-left: 4px solid var(--deck-border);
+            touch-action: manipulation;
         }
         .deck-card:active { transform: scale(0.98); }
-        .deck-card:hover { box-shadow: var(--card-shadow-hover); }
         .deck-card .info h3 {
             font-family: var(--font-header);
             font-weight: 700;
             font-size: 17px;
             color: var(--text-primary);
         }
-        .deck-card .info p {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 2px;
-            font-weight: 500;
-        }
+        .deck-card .info p { font-size: 13px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
         .deck-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .deck-card .actions .btn { touch-action: manipulation; }
         
-        /* ===== STUDY VIEW ===== */
         .card-container {
             background: var(--card-bg);
             border-radius: 18px;
@@ -258,44 +234,12 @@
             margin-top: 12px;
             display: none;
         }
-        .card-container .back.show { display: block; animation: fadeIn 0.25s ease; }
-        .card-container .counter {
-            font-size: 14px;
-            color: var(--text-muted);
-            margin-top: 16px;
-            font-weight: 500;
-        }
-        .card-container .card-tags {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 12px;
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .card-container .card-tags span {
-            background: var(--bg-secondary);
-            padding: 2px 10px;
-            border-radius: 12px;
-            color: var(--text-secondary);
-        }
-        
-        /* Progress bar */
-        .study-progress-bar {
-            width: 100%;
-            height: 4px;
-            background: var(--bg-secondary);
-            border-radius: 4px;
-            margin-top: 12px;
-            overflow: hidden;
-        }
-        .study-progress-bar .fill {
-            height: 100%;
-            background: var(--accent);
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
+        .card-container .back.show { display: block; animation: fadeIn 0.2s ease; }
+        .card-container .counter { font-size: 14px; color: var(--text-muted); margin-top: 16px; font-weight: 500; }
+        .card-container .card-tags { font-size: 12px; color: var(--text-muted); margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+        .card-container .card-tags span { background: var(--bg-secondary); padding: 2px 10px; border-radius: 12px; color: var(--text-secondary); }
+        .study-progress-bar { width: 100%; height: 4px; background: var(--bg-secondary); border-radius: 4px; margin-top: 12px; overflow: hidden; }
+        .study-progress-bar .fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s ease; }
         
         .interval-btns {
             display: grid;
@@ -312,11 +256,10 @@
             font-weight: 600;
             transition: var(--transition-speed);
             font-family: var(--font-body);
+            touch-action: manipulation;
         }
-        .interval-btns .btn:active { transform: scale(0.95); }
-        .interval-btns .btn:hover { background: var(--btn-neutral-hover); color: #fff; }
+        .interval-btns .btn:active { transform: scale(0.95); background: var(--btn-neutral-hover); color: #fff; }
         
-        /* ===== SETTINGS ===== */
         .settings-group {
             background: var(--bg-card);
             border-radius: 14px;
@@ -331,6 +274,7 @@
             align-items: center;
             cursor: pointer;
             user-select: none;
+            touch-action: manipulation;
         }
         .settings-group .group-header h3 {
             font-family: var(--font-header);
@@ -357,13 +301,7 @@
             margin-top: 12px;
         }
         
-        .settings-group label {
-            display: block;
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin: 10px 0 4px;
-            font-weight: 500;
-        }
+        .settings-group label { display: block; font-size: 13px; color: var(--text-secondary); margin: 10px 0 4px; font-weight: 500; }
         .settings-group input {
             width: 100%;
             padding: 10px 14px;
@@ -375,15 +313,11 @@
             font-family: var(--font-body);
             transition: all var(--transition-speed);
         }
-        .settings-group input:focus {
-            outline: 2px solid var(--accent);
-            border-color: transparent;
-        }
+        .settings-group input:focus { outline: 2px solid var(--accent); border-color: transparent; }
         .settings-group input[type="text"] { font-size: 14px; padding: 8px 12px; }
         .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .settings-divider { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
         
-        /* Deck interval rows inside settings */
         .deck-interval-row {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr 1fr;
@@ -402,15 +336,8 @@
             font-family: var(--font-body);
         }
         .deck-interval-row input:focus { outline: 2px solid var(--accent); border-color: transparent; }
-        .deck-interval-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-align: center;
-            margin-top: 2px;
-            font-weight: 500;
-        }
+        .deck-interval-label { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 2px; font-weight: 500; }
         
-        /* ===== MODAL ===== */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0;
@@ -433,34 +360,17 @@
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
-            animation: slideUp 0.3s ease;
+            animation: slideUp 0.25s ease;
             box-shadow: var(--card-shadow-hover);
             transition: all var(--transition-speed);
         }
         @keyframes slideUp {
-            from { transform: translateY(40px); opacity: 0; }
+            from { transform: translateY(30px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        .modal h2 {
-            font-family: var(--font-header);
-            font-weight: 700;
-            font-size: 20px;
-            color: var(--text-primary);
-            margin-bottom: 6px;
-        }
-        .modal .sub {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 16px;
-            font-weight: 500;
-        }
-        .modal label {
-            display: block;
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin: 12px 0 4px;
-            font-weight: 500;
-        }
+        .modal h2 { font-family: var(--font-header); font-weight: 700; font-size: 20px; color: var(--text-primary); margin-bottom: 6px; }
+        .modal .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; font-weight: 500; }
+        .modal label { display: block; font-size: 13px; color: var(--text-secondary); margin: 12px 0 4px; font-weight: 500; }
         .modal input, .modal textarea, .modal select {
             width: 100%;
             padding: 12px 14px;
@@ -478,20 +388,10 @@
             border-color: transparent;
         }
         .modal textarea { min-height: 60px; }
-        .modal .btn-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 18px;
-        }
+        .modal .btn-row { display: flex; gap: 10px; margin-top: 18px; }
         .modal .btn-row .btn { flex: 1; text-align: center; }
         
-        /* Color picker */
-        .color-picker {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
+        .color-picker { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
         .color-picker .color-option {
             width: 32px;
             height: 32px;
@@ -499,12 +399,10 @@
             border: 3px solid transparent;
             cursor: pointer;
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
         .color-picker .color-option:active { transform: scale(0.9); }
-        .color-picker .color-option.selected {
-            border-color: var(--text-primary);
-            box-shadow: 0 0 0 2px var(--bg-primary);
-        }
+        .color-picker .color-option.selected { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-primary); }
         
         .card-list-modal { max-height: 300px; overflow-y: auto; margin: 12px 0; }
         .card-list-item {
@@ -519,18 +417,8 @@
             color: var(--text-primary);
             transition: background var(--transition-speed);
         }
-        .card-list-item .card-tags-sm {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-        }
-        .card-list-item .card-tags-sm span {
-            background: var(--bg-secondary);
-            padding: 1px 8px;
-            border-radius: 10px;
-        }
+        .card-list-item .card-tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
+        .card-list-item .card-tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
         .card-list-item .del {
             color: var(--danger);
             cursor: pointer;
@@ -539,10 +427,10 @@
             background: var(--bg-secondary);
             font-weight: 600;
             font-size: 14px;
+            touch-action: manipulation;
         }
         .card-list-item .del:active { opacity: 0.6; }
         
-        /* ===== FAB ===== */
         .fab-container {
             position: fixed;
             bottom: 24px;
@@ -568,6 +456,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            touch-action: manipulation;
         }
         .fab:active { transform: scale(0.9); }
         .fab.open { transform: rotate(45deg); background: var(--danger); }
@@ -603,13 +492,13 @@
             font-weight: 500;
             cursor: pointer;
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
         .fab-menu-item:active { background: var(--bg-secondary); }
         .fab-menu-item .icon { font-size: 18px; width: 24px; text-align: center; color: var(--text-secondary); }
         .fab-menu-item .label { flex: 1; text-align: left; }
         .fab-menu-divider { border: none; border-top: 1px solid var(--border-color); margin: 4px 12px; }
         
-        /* ===== SEARCH ===== */
         .search-result-item {
             background: var(--bg-primary);
             padding: 12px 14px;
@@ -622,22 +511,9 @@
             color: var(--text-primary);
             transition: background var(--transition-speed);
         }
-        .search-result-item .deck-name {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-        .search-result-item .tags-sm {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-        }
-        .search-result-item .tags-sm span {
-            background: var(--bg-secondary);
-            padding: 1px 8px;
-            border-radius: 10px;
-        }
+        .search-result-item .deck-name { font-size: 12px; color: var(--text-muted); }
+        .search-result-item .tags-sm { font-size: 11px; color: var(--text-muted); display: flex; gap: 4px; flex-wrap: wrap; }
+        .search-result-item .tags-sm span { background: var(--bg-secondary); padding: 1px 8px; border-radius: 10px; }
         
         .empty-state { text-align: center; padding: 40px 0; color: var(--text-muted); }
         .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
@@ -654,7 +530,7 @@
             transform: translateX(-50%);
             background: var(--bg-card);
             color: var(--text-primary);
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             box-shadow: var(--card-shadow-hover);
@@ -671,7 +547,6 @@
         .toast.show { opacity: 1; }
         
         .hidden-file-input { display: none; }
-        
         .share-link-box {
             background: var(--bg-primary);
             padding: 12px 16px;
@@ -683,23 +558,11 @@
             margin: 8px 0;
             font-family: monospace;
         }
-        .drive-status {
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin: 4px 0;
-            font-size: 13px;
-            font-weight: 500;
-        }
+        .drive-status { padding: 8px 12px; border-radius: 8px; margin: 4px 0; font-size: 13px; font-weight: 500; }
         .drive-status.connected { background: var(--success); color: #fff; }
         .drive-status.disconnected { background: var(--danger); color: #fff; }
         .drive-status.pending { background: var(--warning); color: #000; }
-        
-        .sync-info {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 4px;
-            font-weight: 500;
-        }
+        .sync-info { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
         
         @media (max-width: 400px) {
             .interval-btns { grid-template-columns: 1fr 1fr; }
@@ -715,7 +578,6 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- ===== TOP BAR ===== -->
 <div class="top-bar">
     <h1>Cjay<span>Cards</span></h1>
     <div class="right-group">
@@ -726,7 +588,6 @@
     </div>
 </div>
 
-<!-- ===== SCREEN: HOME ===== -->
 <div id="screen-home" class="screen active">
     <div id="statsBar" class="stats-bar hidden">
         <div class="stat">📚 <span class="num" id="totalCards">0</span> total</div>
@@ -736,7 +597,6 @@
     <div id="deckList" class="deck-grid"></div>
 </div>
 
-<!-- ===== SCREEN: STUDY ===== -->
 <div id="screen-study" class="screen">
     <div class="flex-between mb-8">
         <button class="btn btn-outline btn-sm" onclick="exitStudy()">← Back</button>
@@ -765,11 +625,9 @@
     </div>
 </div>
 
-<!-- ===== SCREEN: SETTINGS ===== -->
 <div id="screen-settings" class="screen">
     <h2 style="font-family:var(--font-header); font-weight:700; font-size:20px; color:var(--text-primary); margin-bottom:16px;">Settings</h2>
     
-    <!-- Deck Intervals -->
     <div class="settings-group">
         <div class="group-header" onclick="toggleGroup(this)">
             <h3>Deck Intervals</h3>
@@ -781,7 +639,6 @@
         </div>
     </div>
     
-    <!-- Button Labels -->
     <div class="settings-group">
         <div class="group-header" onclick="toggleGroup(this)">
             <h3>Button Labels</h3>
@@ -800,7 +657,6 @@
         </div>
     </div>
     
-    <!-- Google Drive Sync -->
     <div class="settings-group">
         <div class="group-header" onclick="toggleGroup(this)">
             <h3>Google Drive Sync</h3>
@@ -820,7 +676,6 @@
         </div>
     </div>
     
-    <!-- Backup & Restore -->
     <div class="settings-group">
         <div class="group-header" onclick="toggleGroup(this)">
             <h3>Backup & Restore</h3>
@@ -838,12 +693,10 @@
     <button class="btn btn-danger btn-block" style="margin-top:20px;" onclick="resetAllData()">Reset All Data</button>
 </div>
 
-<!-- ===== MODAL ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
     <div class="modal" id="modalContent"></div>
 </div>
 
-<!-- ===== FAB ===== -->
 <div class="fab-container">
     <div class="fab-menu" id="fabMenu">
         <button class="fab-menu-item" onclick="closeFab(); openModal('addCard', getSelectedDeckId())">
@@ -909,6 +762,7 @@ let studyQueue = [];
 let isFlipped = false;
 let selectedDeckId = null;
 let tokenClient = null;
+let saveTimeout = null;
 
 function loadData() {
     try {
@@ -936,9 +790,12 @@ function loadLabels() {
 }
 
 function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    updateBadge();
-    renderHome();
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        updateBadge();
+        renderHome();
+    }, 50);
 }
 
 function saveLabels() {
@@ -969,14 +826,9 @@ function getButtonLabel(index) {
 }
 
 function getSelectedDeckId() {
-    if (selectedDeckId && data.decks[selectedDeckId]) {
-        return selectedDeckId;
-    }
+    if (selectedDeckId && data.decks[selectedDeckId]) return selectedDeckId;
     const ids = Object.keys(data.decks);
-    if (ids.length > 0) {
-        selectedDeckId = ids[0];
-        return ids[0];
-    }
+    if (ids.length > 0) { selectedDeckId = ids[0]; return ids[0]; }
     return null;
 }
 
@@ -1010,7 +862,7 @@ function showToast(msg) {
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+    toastTimeout = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
 // ============================================================
@@ -1056,37 +908,22 @@ function saveGoogleClientId() {
     }
 }
 
-function loadGoogleClientId() {
-    return localStorage.getItem(CLIENT_ID_KEY) || '';
-}
-
-function saveGoogleToken(token) {
-    localStorage.setItem(TOKEN_KEY, token);
-}
-
-function loadGoogleToken() {
-    return localStorage.getItem(TOKEN_KEY) || '';
-}
+function loadGoogleClientId() { return localStorage.getItem(CLIENT_ID_KEY) || ''; }
+function saveGoogleToken(token) { localStorage.setItem(TOKEN_KEY, token); }
+function loadGoogleToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
 function setLastSyncTime() {
     localStorage.setItem(SYNC_TIME_KEY, new Date().toISOString());
     updateSyncInfo();
 }
 
-function getLastSyncTime() {
-    return localStorage.getItem(SYNC_TIME_KEY) || null;
-}
+function getLastSyncTime() { return localStorage.getItem(SYNC_TIME_KEY) || null; }
 
 function updateSyncInfo() {
     const el = document.getElementById('syncInfo');
     if (!el) return;
     const time = getLastSyncTime();
-    if (time) {
-        const d = new Date(time);
-        el.textContent = 'Last synced: ' + d.toLocaleString();
-    } else {
-        el.textContent = 'Not synced yet. Push or pull data.';
-    }
+    el.textContent = time ? 'Last synced: ' + new Date(time).toLocaleString() : 'Not synced yet.';
 }
 
 function setDriveStatus(msg, type) {
@@ -1099,47 +936,30 @@ function updateDriveButtons(connected) {
     const pushBtn = document.getElementById('pushDriveBtn');
     const pullBtn = document.getElementById('pullDriveBtn');
     const connectBtn = document.getElementById('connectDriveBtn');
-    
     if (pushBtn) pushBtn.disabled = !connected;
     if (pullBtn) pullBtn.disabled = !connected;
-    
     if (connectBtn) {
-        if (connected) {
-            connectBtn.textContent = '✅ Connected';
-            connectBtn.className = 'btn btn-success btn-sm';
-        } else {
-            connectBtn.textContent = '🔗 Connect';
-            connectBtn.className = 'btn btn-primary btn-sm';
-        }
+        connectBtn.textContent = connected ? '✅ Connected' : '🔗 Connect';
+        connectBtn.className = connected ? 'btn btn-success btn-sm' : 'btn btn-primary btn-sm';
     }
 }
 
 function connectGoogleDrive() {
     const clientId = document.getElementById('googleClientId').value.trim() || loadGoogleClientId();
-    if (!clientId) {
-        showToast('Please enter your Google Client ID first.');
-        return;
-    }
+    if (!clientId) { showToast('Please enter your Google Client ID first.'); return; }
     localStorage.setItem(CLIENT_ID_KEY, clientId);
-    
     if (typeof google === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.onload = function() { initGoogleDrive(); };
-        script.onerror = function() {
-            showToast('Failed to load Google library.');
-            setDriveStatus('❌ Failed to load Google library', 'disconnected');
-        };
+        script.onerror = function() { showToast('Failed to load Google library.'); setDriveStatus('❌ Failed to load Google library', 'disconnected'); };
         document.head.appendChild(script);
-    } else {
-        initGoogleDrive();
-    }
+    } else { initGoogleDrive(); }
 }
 
 function initGoogleDrive() {
     const clientId = loadGoogleClientId();
     if (!clientId) return;
-    
     try {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
@@ -1165,43 +985,28 @@ function initGoogleDrive() {
     }
 }
 
-// Helper: Find or create CjayCards folder
 async function getOrCreateDriveFolder(token) {
-    // Search for existing folder
     const searchRes = await fetch(
         "https://www.googleapis.com/drive/v3/files?q=name='CjayCards' and mimeType='application/vnd.google-apps.folder' and trashed=false",
         { headers: { 'Authorization': 'Bearer ' + token } }
     );
     const searchData = await searchRes.json();
-    
-    if (searchData.files && searchData.files.length > 0) {
-        return searchData.files[0].id;
-    }
-    
-    // Create folder if not exists
+    if (searchData.files && searchData.files.length > 0) return searchData.files[0].id;
     const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
         method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            name: 'CjayCards',
-            mimeType: 'application/vnd.google-apps.folder'
-        })
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'CjayCards', mimeType: 'application/vnd.google-apps.folder' })
     });
     const createData = await createRes.json();
     return createData.id;
 }
 
-// Helper: Delete old backup files in folder
 async function deleteOldBackups(token, folderId) {
     const searchRes = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and '${folderId}' in parents and trashed=false`,
         { headers: { 'Authorization': 'Bearer ' + token } }
     );
     const searchData = await searchRes.json();
-    
     if (searchData.files) {
         for (const file of searchData.files) {
             await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
@@ -1214,129 +1019,71 @@ async function deleteOldBackups(token, folderId) {
 
 async function pushToDrive() {
     const token = loadGoogleToken();
-    if (!token) {
-        showToast('Please connect to Google Drive first.');
-        return;
-    }
-    
+    if (!token) { showToast('Please connect to Google Drive first.'); return; }
     const cardCount = Object.keys(data.decks).reduce((acc, id) => acc + data.decks[id].cards.length, 0);
-    if (cardCount === 0) {
-        showToast('No data to push. Add some cards first!');
-        return;
-    }
-    
-    setDriveStatus('📤 Pushing to Drive...', 'pending');
-    
+    if (cardCount === 0) { showToast('No data to push.'); return; }
+    setDriveStatus('📤 Pushing...', 'pending');
     try {
-        // Get or create folder
         const folderId = await getOrCreateDriveFolder(token);
-        
-        // Delete old backups
         await deleteOldBackups(token, folderId);
-        
-        const backupData = {
-            data: data,
-            labels: labels,
-            theme: getStoredTheme(),
-            exportedAt: new Date().toISOString()
-        };
-        
+        const backupData = { data: data, labels: labels, theme: getStoredTheme(), exportedAt: new Date().toISOString() };
         const jsonString = JSON.stringify(backupData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
-        const metadata = {
-            name: 'cjaycards_backup.json',
-            parents: [folderId]
-        };
-        
+        const metadata = { name: 'cjaycards_backup.json', parents: [folderId] };
         const form = new FormData();
         form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
         form.append('file', blob);
-        
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token },
             body: form
         });
-        
         if (!response.ok) {
-            if (response.status === 401) {
-                saveGoogleToken('');
-                updateDriveButtons(false);
-                setDriveStatus('❌ Token expired. Please reconnect.', 'disconnected');
-                showToast('Token expired. Please reconnect.');
-                return;
-            }
+            if (response.status === 401) { saveGoogleToken(''); updateDriveButtons(false); setDriveStatus('❌ Token expired. Reconnect.', 'disconnected'); showToast('Token expired.'); return; }
             throw new Error('Upload failed (HTTP ' + response.status + ')');
         }
-        
-        const result = await response.json();
         setLastSyncTime();
         setDriveStatus('✅ Push successful!', 'connected');
         showToast('Data pushed to Drive!');
         updateSyncInfo();
-        
     } catch (err) {
         console.error('Push error:', err);
         setDriveStatus('❌ Push failed: ' + err.message, 'disconnected');
-        showToast('Push failed: ' + err.message);
+        showToast('Push failed.');
     }
 }
 
 async function pullFromDrive() {
     const token = loadGoogleToken();
-    if (!token) {
-        showToast('Please connect to Google Drive first.');
-        return;
-    }
-    
-    setDriveStatus('📥 Pulling from Drive...', 'pending');
-    
+    if (!token) { showToast('Please connect to Google Drive first.'); return; }
+    setDriveStatus('📥 Pulling...', 'pending');
     try {
-        // Get folder
         const folderId = await getOrCreateDriveFolder(token);
-        
-        // Search for backup file
         const searchRes = await fetch(
             `https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and '${folderId}' in parents and trashed=false`,
             { headers: { 'Authorization': 'Bearer ' + token } }
         );
         const searchData = await searchRes.json();
-        
         if (!searchData.files || searchData.files.length === 0) {
-            setDriveStatus('ℹ️ No backup found in Drive. Push data first.', '');
-            showToast('No backup found in Drive.');
+            setDriveStatus('ℹ️ No backup found. Push data first.', '');
+            showToast('No backup found.');
             return;
         }
-        
         const fileId = searchData.files[0].id;
         const fileModified = searchData.files[0].modifiedTime;
-        
-        const downloadRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-            { headers: { 'Authorization': 'Bearer ' + token } }
-        );
-        
-        if (!downloadRes.ok) {
-            throw new Error('Download failed (HTTP ' + downloadRes.status + ')');
-        }
-        
+        const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!downloadRes.ok) throw new Error('Download failed (HTTP ' + downloadRes.status + ')');
         const jsonString = await downloadRes.text();
         const backupData = JSON.parse(jsonString);
-        
-        if (!backupData.data || !backupData.data.decks) {
-            throw new Error('Invalid backup data format.');
-        }
-        
+        if (!backupData.data || !backupData.data.decks) throw new Error('Invalid backup format.');
         let cardCount = 0;
-        for (const [id, deck] of Object.entries(backupData.data.decks)) {
-            cardCount += deck.cards ? deck.cards.length : 0;
-        }
-        
+        for (const [id, deck] of Object.entries(backupData.data.decks)) { cardCount += deck.cards ? deck.cards.length : 0; }
         if (!confirm(`Replace all current data with Drive backup?\n\nBackup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} cards\n• Last modified: ${new Date(fileModified).toLocaleString()}\n\nContinue?`)) {
             setDriveStatus('Pull cancelled.', '');
             return;
         }
-        
         data = backupData.data;
         if (backupData.labels) {
             labels = backupData.labels;
@@ -1347,7 +1094,6 @@ async function pullFromDrive() {
             document.getElementById('labelEasy').value = labels.easy || 'Easy';
         }
         if (backupData.theme) applyTheme(backupData.theme);
-        
         saveData();
         renderHome();
         renderSettings();
@@ -1355,11 +1101,10 @@ async function pullFromDrive() {
         setDriveStatus('✅ Pull successful! Imported ' + cardCount + ' cards.', 'connected');
         showToast('✅ Imported ' + cardCount + ' cards from Drive!');
         updateSyncInfo();
-        
     } catch (err) {
         console.error('Pull error:', err);
         setDriveStatus('❌ Pull failed: ' + err.message, 'disconnected');
-        showToast('Pull failed: ' + err.message);
+        showToast('Pull failed.');
     }
 }
 
@@ -1368,13 +1113,7 @@ async function pullFromDrive() {
 // ============================================================
 function exportBackup() {
     closeFab();
-    const backupData = {
-        version: '1.0',
-        exportedAt: new Date().toISOString(),
-        data: data,
-        labels: labels,
-        theme: getStoredTheme()
-    };
+    const backupData = { version: '1.0', exportedAt: new Date().toISOString(), data: data, labels: labels, theme: getStoredTheme() };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1397,14 +1136,9 @@ document.getElementById('backupInput').addEventListener('change', function(e) {
     reader.onload = function(event) {
         try {
             const backupData = JSON.parse(event.target.result);
-            if (!backupData.data || !backupData.data.decks) {
-                showToast('Invalid backup file!');
-                return;
-            }
+            if (!backupData.data || !backupData.data.decks) { showToast('Invalid backup file!'); return; }
             let cardCount = 0;
-            for (const [id, deck] of Object.entries(backupData.data.decks)) {
-                cardCount += deck.cards ? deck.cards.length : 0;
-            }
+            for (const [id, deck] of Object.entries(backupData.data.decks)) { cardCount += deck.cards ? deck.cards.length : 0; }
             if (!confirm(`Replace all current data with backup?\n\nBackup contains:\n• ${Object.keys(backupData.data.decks).length} deck(s)\n• ${cardCount} card(s)\n\nContinue?`)) return;
             data = backupData.data;
             if (backupData.labels) {
@@ -1462,10 +1196,7 @@ function openModal(type, deckId, cardId) {
     if (type === 'addCard') {
         if (!deckId || !data.decks[deckId]) {
             const ids = Object.keys(data.decks);
-            if (ids.length === 0) {
-                showToast('Please create a deck first.');
-                return;
-            }
+            if (ids.length === 0) { showToast('Please create a deck first.'); return; }
             deckId = ids[0];
             selectedDeckId = deckId;
         }
@@ -1514,10 +1245,7 @@ function openModal(type, deckId, cardId) {
     }
     
     if (type === 'manageDeck') {
-        if (!deckId || !data.decks[deckId]) {
-            showToast('Deck not found.');
-            return;
-        }
+        if (!deckId || !data.decks[deckId]) { showToast('Deck not found.'); return; }
         const deck = data.decks[deckId];
         let cardHtml = '';
         if (deck.cards.length === 0) {
@@ -1639,23 +1367,12 @@ function closeModal() {
 
 function confirmNewDeck() {
     const nameInput = document.getElementById('modalDeckName');
-    if (!nameInput) {
-        showToast('Error: Could not find input field.');
-        return;
-    }
+    if (!nameInput) { showToast('Error: Could not find input field.'); return; }
     const deckName = nameInput.value.trim();
-    if (!deckName) {
-        showToast('Please enter a deck name.');
-        return;
-    }
+    if (!deckName) { showToast('Please enter a deck name.'); return; }
     const color = document.getElementById('selectedDeckColor').value || '#2563eb';
     const id = generateId();
-    data.decks[id] = { 
-        name: deckName, 
-        intervals: [0.0417, 1, 3, 7], 
-        cards: [],
-        color: color
-    };
+    data.decks[id] = { name: deckName, intervals: [0.0417, 1, 3, 7], cards: [], color: color };
     saveData();
     closeModal();
     renderHome();
@@ -1745,14 +1462,9 @@ function liveSearch() {
     const results = document.getElementById('searchResults');
     if (!input || !results) return;
     const query = input.value.toLowerCase().trim();
-    if (!query) {
-        results.innerHTML = '<p class="text-muted">Type to search...</p>';
-        return;
-    }
-    
+    if (!query) { results.innerHTML = '<p class="text-muted">Type to search...</p>'; return; }
     const isTagSearch = query.startsWith('#');
     const searchTerm = isTagSearch ? query.slice(1) : query;
-    
     let matches = [];
     for (const [deckId, deck] of Object.entries(data.decks)) {
         deck.cards.forEach(c => {
@@ -1767,12 +1479,7 @@ function liveSearch() {
             if (match) matches.push({ ...c, deckName: deck.name, deckId });
         });
     }
-    
-    if (matches.length === 0) {
-        results.innerHTML = '<p class="text-muted">No matches found.</p>';
-        return;
-    }
-    
+    if (matches.length === 0) { results.innerHTML = '<p class="text-muted">No matches found.</p>'; return; }
     results.innerHTML = matches.map(m => `
         <div class="search-result-item">
             <div>
@@ -1785,30 +1492,23 @@ function liveSearch() {
     `).join('');
 }
 
-// ============================================================
-// TAGS OVERVIEW
-// ============================================================
 function openTagsOverview() {
     closeFab();
     openModal('tagsOverview');
 }
 
 // ============================================================
-// RENDER: HOME
+// RENDER: HOME (Optimized)
 // ============================================================
 function renderHome() {
     const container = document.getElementById('deckList');
     const ids = Object.keys(data.decks);
     
-    // Stats
-    let totalCards = 0;
-    let dueCards = 0;
-    let masteredCards = 0;
+    let totalCards = 0, dueCards = 0, masteredCards = 0;
     for (const [id, deck] of Object.entries(data.decks)) {
         deck.cards.forEach(c => {
             totalCards++;
             if (isDue(c)) dueCards++;
-            // Simple mastery: if interval >= 14 days, consider mastered
             if (c.step >= 4) masteredCards++;
         });
     }
@@ -1827,6 +1527,7 @@ function renderHome() {
         container.innerHTML = `<div class="empty-state"><div style="font-size:48px; margin-bottom:12px; opacity:0.3;">📚</div><p>No decks yet. Tap "+" to create one.</p></div>`;
         return;
     }
+    
     container.innerHTML = ids.map(id => {
         const deck = data.decks[id];
         const due = deck.cards.filter(c => isDue(c)).length;
@@ -1838,8 +1539,8 @@ function renderHome() {
                     <p>${due} due · ${deck.cards.length} total</p>
                 </div>
                 <div class="actions">
-                    <button class="btn btn-primary btn-sm" onclick="selectedDeckId='${id}';startStudy('${id}')">Study</button>
-                    <button class="btn btn-neutral btn-sm" onclick="selectedDeckId='${id}';openModal('manageDeck','${id}')">Edit</button>
+                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); selectedDeckId='${id}';startStudy('${id}')">Study</button>
+                    <button class="btn btn-neutral btn-sm" onclick="event.stopPropagation(); selectedDeckId='${id}';openModal('manageDeck','${id}')">Edit</button>
                 </div>
             </div>
         `;
@@ -1848,10 +1549,7 @@ function renderHome() {
 }
 
 function updateBadge() {
-    let total = 0;
-    for (const id of Object.keys(data.decks)) {
-        total += data.decks[id].cards.filter(c => isDue(c)).length;
-    }
+    // No-op, kept for compatibility
 }
 
 // ============================================================
@@ -1861,10 +1559,7 @@ function startStudy(deckId) {
     currentDeckId = deckId;
     const deck = data.decks[deckId];
     const due = deck.cards.filter(c => isDue(c));
-    if (due.length === 0) {
-        showToast('No cards due in this deck!');
-        return;
-    }
+    if (due.length === 0) { showToast('No cards due in this deck!'); return; }
     studyQueue = due.sort(() => Math.random() - 0.5);
     currentCardIndex = 0;
     isFlipped = false;
@@ -1895,7 +1590,7 @@ function renderCard() {
     actions.classList.remove('hidden');
     complete.classList.add('hidden');
     btns.classList.add('hidden');
-    revealBtn.classList.remove('hidden');
+    if (revealBtn) revealBtn.classList.remove('hidden');
     
     const card = studyQueue[currentCardIndex];
     front.textContent = card.front;
@@ -1928,7 +1623,6 @@ function updateIntervalButtons() {
         const display = getIntervalDisplay(intervals[i]);
         return `<button class="btn" onclick="answerCard(${i})">${label} (${display})</button>`;
     }).join('');
-    
     container.classList.remove('hidden');
 }
 
@@ -1936,7 +1630,8 @@ function flipCard() {
     if (isFlipped) return;
     isFlipped = true;
     document.getElementById('cardBack').classList.add('show');
-    document.querySelector('#studyActions .btn-neutral').classList.add('hidden');
+    const revealBtn = document.querySelector('#studyActions .btn-neutral');
+    if (revealBtn) revealBtn.classList.add('hidden');
     document.getElementById('intervalBtns').classList.remove('hidden');
 }
 
@@ -2009,9 +1704,7 @@ function renderSettings() {
     document.getElementById('labelEasy').value = saved.easy || 'Easy';
     
     const clientId = loadGoogleClientId();
-    if (clientId) {
-        document.getElementById('googleClientId').value = clientId;
-    }
+    if (clientId) document.getElementById('googleClientId').value = clientId;
     
     const token = loadGoogleToken();
     if (token) {
@@ -2048,31 +1741,21 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     reader.onload = function(event) {
         const text = event.target.result;
         const lines = text.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-            showToast('CSV must have headers + data.');
-            return;
-        }
+        if (lines.length < 2) { showToast('CSV must have headers + data.'); return; }
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
         const frontIdx = headers.indexOf('front');
         const backIdx = headers.indexOf('back');
         const tagsIdx = headers.indexOf('tags');
         const deckIdx = headers.indexOf('deck');
-        
-        if (frontIdx === -1 || backIdx === -1) {
-            showToast('CSV must have "front" and "back" columns.');
-            return;
-        }
-        
+        if (frontIdx === -1 || backIdx === -1) { showToast('CSV must have "front" and "back" columns.'); return; }
         let added = 0;
         for (let i = 1; i < lines.length; i++) {
             const cols = lines[i].split(',').map(c => c.trim());
             const front = cols[frontIdx] || '';
             const back = cols[backIdx] || '';
             if (!front || !back) continue;
-            const tags = tagsIdx !== -1 && cols[tagsIdx] ? 
-                cols[tagsIdx].split(';').map(t => t.trim()).filter(t => t) : [];
+            const tags = tagsIdx !== -1 && cols[tagsIdx] ? cols[tagsIdx].split(';').map(t => t.trim()).filter(t => t) : [];
             let deckName = deckIdx !== -1 && cols[deckIdx] ? cols[deckIdx].trim() : 'Imported';
-            
             let deckId = Object.keys(data.decks).find(id => data.decks[id].name === deckName);
             if (!deckId) {
                 deckId = generateId();
@@ -2100,10 +1783,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
 function exportCSV() {
     closeFab();
     const ids = Object.keys(data.decks);
-    if (ids.length === 0) {
-        showToast('No decks to export.');
-        return;
-    }
+    if (ids.length === 0) { showToast('No decks to export.'); return; }
     let csv = 'Front,Back,Tags,Deck\n';
     for (const [id, deck] of Object.entries(data.decks)) {
         deck.cards.forEach(c => {
@@ -2127,10 +1807,7 @@ function exportCSV() {
 function resetProgress() {
     closeFab();
     const ids = Object.keys(data.decks);
-    if (ids.length === 0) {
-        showToast('No decks to reset.');
-        return;
-    }
+    if (ids.length === 0) { showToast('No decks to reset.'); return; }
     openModal('resetProgress');
 }
 
@@ -2171,7 +1848,7 @@ function resetAllData() {
 renderHome();
 renderSettings();
 
-// Expose functions to global scope
+// Expose to global
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.confirmNewDeck = confirmNewDeck;
