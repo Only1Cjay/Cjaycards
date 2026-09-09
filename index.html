@@ -81,7 +81,6 @@
             padding: 16px 16px 90px 16px;
             transition: background var(--transition-speed), color var(--transition-speed);
             overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
         }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
@@ -121,9 +120,9 @@
             font-size: 15px;
             color: var(--text-secondary);
             transition: var(--transition-speed);
-            touch-action: manipulation;
         }
-        .top-bar .icon-btn:active { transform: scale(0.9); background: var(--accent); color: #fff; }
+        .top-bar .icon-btn:hover { background: var(--accent); color: #fff; }
+        .top-bar .icon-btn:active { transform: scale(0.9); }
 
         .btn {
             padding: 10px 20px;
@@ -136,17 +135,17 @@
             transition: var(--transition-speed);
             background: var(--btn-neutral);
             color: var(--btn-neutral-text);
-            touch-action: manipulation;
             position: relative;
         }
+        .btn:hover { opacity: 0.85; }
         .btn:active { transform: scale(0.96); }
         .btn-primary {
             background: var(--btn-primary);
             color: var(--btn-primary-text);
         }
-        .btn-primary:active { background: var(--accent-hover); }
+        .btn-primary:hover { background: var(--accent-hover); }
         .btn-neutral { background: var(--btn-neutral); color: var(--btn-neutral-text); }
-        .btn-neutral:active { background: var(--btn-neutral-hover); color: #fff; }
+        .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
         .btn-success { background: var(--success); color: #fff; }
         .btn-danger { background: var(--danger); color: #fff; }
         .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
@@ -189,10 +188,9 @@
             align-items: center;
             box-shadow: var(--card-shadow);
             transition: all var(--transition-speed);
-            cursor: pointer;
             border-left: 4px solid var(--deck-border);
-            touch-action: manipulation;
         }
+        .deck-card:hover { box-shadow: var(--card-shadow-hover); }
         .deck-card:active { transform: scale(0.98); }
         .deck-card .info h3 {
             font-family: var(--font-header);
@@ -202,7 +200,6 @@
         }
         .deck-card .info p { font-size: 13px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
         .deck-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .deck-card .actions .btn { touch-action: manipulation; }
         
         .card-container {
             background: var(--card-bg);
@@ -256,9 +253,9 @@
             font-weight: 600;
             transition: var(--transition-speed);
             font-family: var(--font-body);
-            touch-action: manipulation;
         }
-        .interval-btns .btn:active { transform: scale(0.95); background: var(--btn-neutral-hover); color: #fff; }
+        .interval-btns .btn:hover { background: var(--btn-neutral-hover); color: #fff; }
+        .interval-btns .btn:active { transform: scale(0.95); }
         
         .settings-group {
             background: var(--bg-card);
@@ -274,8 +271,8 @@
             align-items: center;
             cursor: pointer;
             user-select: none;
-            touch-action: manipulation;
         }
+        .settings-group .group-header:hover { opacity: 0.8; }
         .settings-group .group-header h3 {
             font-family: var(--font-header);
             font-weight: 700;
@@ -399,8 +396,8 @@
             border: 3px solid transparent;
             cursor: pointer;
             transition: var(--transition-speed);
-            touch-action: manipulation;
         }
+        .color-picker .color-option:hover { transform: scale(1.1); }
         .color-picker .color-option:active { transform: scale(0.9); }
         .color-picker .color-option.selected { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-primary); }
         
@@ -427,9 +424,9 @@
             background: var(--bg-secondary);
             font-weight: 600;
             font-size: 14px;
-            touch-action: manipulation;
         }
-        .card-list-item .del:active { opacity: 0.6; }
+        .card-list-item .del:hover { opacity: 0.7; }
+        .card-list-item .del:active { opacity: 0.5; }
         
         .fab-container {
             position: fixed;
@@ -456,8 +453,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            touch-action: manipulation;
         }
+        .fab:hover { opacity: 0.9; }
         .fab:active { transform: scale(0.9); }
         .fab.open { transform: rotate(45deg); background: var(--danger); }
         
@@ -492,9 +489,9 @@
             font-weight: 500;
             cursor: pointer;
             transition: var(--transition-speed);
-            touch-action: manipulation;
         }
-        .fab-menu-item:active { background: var(--bg-secondary); }
+        .fab-menu-item:hover { background: var(--bg-secondary); }
+        .fab-menu-item:active { opacity: 0.7; }
         .fab-menu-item .icon { font-size: 18px; width: 24px; text-align: center; color: var(--text-secondary); }
         .fab-menu-item .label { flex: 1; text-align: left; }
         .fab-menu-divider { border: none; border-top: 1px solid var(--border-color); margin: 4px 12px; }
@@ -581,10 +578,10 @@
 <div class="top-bar">
     <h1>Cjay<span>Cards</span></h1>
     <div class="right-group">
-        <button class="icon-btn" onclick="openSearch()" aria-label="Search">🔍</button>
-        <button class="icon-btn" onclick="toggleTheme()" id="themeToggle" aria-label="Toggle theme">🌙</button>
-        <button class="icon-btn" onclick="showScreen('home')" aria-label="Home">🏠</button>
-        <button class="icon-btn" onclick="showScreen('settings')" aria-label="Settings">⚙️</button>
+        <button class="icon-btn" id="searchBtn" aria-label="Search">🔍</button>
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">🌙</button>
+        <button class="icon-btn" id="homeBtn" aria-label="Home">🏠</button>
+        <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙️</button>
     </div>
 </div>
 
@@ -599,7 +596,7 @@
 
 <div id="screen-study" class="screen">
     <div class="flex-between mb-8">
-        <button class="btn btn-outline btn-sm" onclick="exitStudy()">← Back</button>
+        <button class="btn btn-outline btn-sm" id="exitStudyBtn">← Back</button>
         <span id="studyDeckName" class="text-muted" style="font-weight:600;"></span>
         <span id="studyProgress" class="text-muted" style="font-size:13px;"></span>
     </div>
@@ -612,15 +609,15 @@
             <div class="study-progress-bar"><div class="fill" id="studyProgressFill" style="width:0%"></div></div>
         </div>
         <div id="studyActions">
-            <button class="btn btn-neutral btn-block" onclick="flipCard()">Reveal Answer</button>
+            <button class="btn btn-neutral btn-block" id="flipCardBtn">Reveal Answer</button>
             <div class="interval-btns hidden" id="intervalBtns"></div>
-            <button class="btn btn-outline btn-sm btn-block" style="margin-top:8px;" onclick="skipCard()">Skip for now</button>
+            <button class="btn btn-outline btn-sm btn-block" id="skipCardBtn" style="margin-top:8px;">Skip for now</button>
         </div>
         <div id="studyComplete" class="hidden text-center" style="padding:30px 0;">
             <div style="font-size:48px; margin-bottom:12px;">🎉</div>
             <h3 style="color:var(--text-primary); font-family:var(--font-header);">All done for now!</h3>
             <p class="text-muted">You've reviewed all due cards in this deck.</p>
-            <button class="btn btn-primary mt-12" onclick="exitStudy()">Back to Decks</button>
+            <button class="btn btn-primary mt-12" id="studyCompleteBtn">Back to Decks</button>
         </div>
     </div>
 </div>
@@ -629,7 +626,7 @@
     <h2 style="font-family:var(--font-header); font-weight:700; font-size:20px; color:var(--text-primary); margin-bottom:16px;">Settings</h2>
     
     <div class="settings-group">
-        <div class="group-header" onclick="toggleGroup(this)">
+        <div class="group-header" data-group="intervals">
             <h3>Deck Intervals</h3>
             <span class="toggle-icon">▼</span>
         </div>
@@ -640,36 +637,37 @@
     </div>
     
     <div class="settings-group">
-        <div class="group-header" onclick="toggleGroup(this)">
+        <div class="group-header" data-group="labels">
             <h3>Button Labels</h3>
             <span class="toggle-icon">▼</span>
         </div>
         <div class="group-content">
             <p class="text-muted" style="margin-bottom:8px;">Customize what appears on each button.</p>
             <label>Label 1 (Again)</label>
-            <input type="text" id="labelAgain" value="Again" onchange="saveButtonLabels()">
+            <input type="text" id="labelAgain" value="Again">
             <label>Label 2 (Hard)</label>
-            <input type="text" id="labelHard" value="Hard" onchange="saveButtonLabels()">
+            <input type="text" id="labelHard" value="Hard">
             <label>Label 3 (Good)</label>
-            <input type="text" id="labelGood" value="Good" onchange="saveButtonLabels()">
+            <input type="text" id="labelGood" value="Good">
             <label>Label 4 (Easy)</label>
-            <input type="text" id="labelEasy" value="Easy" onchange="saveButtonLabels()">
+            <input type="text" id="labelEasy" value="Easy">
+            <button class="btn btn-primary btn-sm" id="saveLabelsBtn" style="margin-top:8px;">Save Labels</button>
         </div>
     </div>
     
     <div class="settings-group">
-        <div class="group-header" onclick="toggleGroup(this)">
+        <div class="group-header" data-group="drive">
             <h3>Google Drive Sync</h3>
             <span class="toggle-icon">▼</span>
         </div>
         <div class="group-content">
             <p class="text-muted" style="margin-bottom:8px;">Connect your Google Drive to sync data across devices.</p>
             <label>Google Client ID</label>
-            <input type="text" id="googleClientId" placeholder="Paste your Google Client ID here..." onchange="saveGoogleClientId()">
+            <input type="text" id="googleClientId" placeholder="Paste your Google Client ID here...">
             <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn btn-primary btn-sm" onclick="connectGoogleDrive()" id="connectDriveBtn">🔗 Connect</button>
-                <button class="btn btn-success btn-sm" onclick="pushToDrive()" id="pushDriveBtn" disabled>📤 Push</button>
-                <button class="btn btn-neutral btn-sm" onclick="pullFromDrive()" id="pullDriveBtn" disabled>📥 Pull</button>
+                <button class="btn btn-primary btn-sm" id="connectDriveBtn">🔗 Connect</button>
+                <button class="btn btn-success btn-sm" id="pushDriveBtn" disabled>📤 Push</button>
+                <button class="btn btn-neutral btn-sm" id="pullDriveBtn" disabled>📥 Pull</button>
             </div>
             <div id="driveStatus" style="margin-top:8px;"></div>
             <div id="syncInfo" class="sync-info"></div>
@@ -677,60 +675,42 @@
     </div>
     
     <div class="settings-group">
-        <div class="group-header" onclick="toggleGroup(this)">
+        <div class="group-header" data-group="backup">
             <h3>Backup & Restore</h3>
             <span class="toggle-icon">▼</span>
         </div>
         <div class="group-content">
             <p class="text-muted" style="margin-bottom:8px;">Export your data as a JSON file or import a backup.</p>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn btn-success btn-sm" onclick="exportBackup()">💾 Export</button>
-                <button class="btn btn-neutral btn-sm" onclick="importBackup()">📂 Import</button>
+                <button class="btn btn-success btn-sm" id="exportBackupBtn">💾 Export</button>
+                <button class="btn btn-neutral btn-sm" id="importBackupBtn">📂 Import</button>
             </div>
         </div>
     </div>
     
-    <button class="btn btn-danger btn-block" style="margin-top:20px;" onclick="resetAllData()">Reset All Data</button>
+    <button class="btn btn-danger btn-block" id="resetAllBtn">Reset All Data</button>
 </div>
 
-<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+<div class="modal-overlay" id="modalOverlay">
     <div class="modal" id="modalContent"></div>
 </div>
 
 <div class="fab-container">
     <div class="fab-menu" id="fabMenu">
-        <button class="fab-menu-item" onclick="closeFab(); openModal('addCard', getSelectedDeckId())">
-            <span class="icon">➕</span><span class="label">Add Card</span>
-        </button>
-        <button class="fab-menu-item" onclick="closeFab(); openModal('newDeck')">
-            <span class="icon">🗂️</span><span class="label">New Deck</span>
-        </button>
-        <button class="fab-menu-item" onclick="closeFab(); openSearch()">
-            <span class="icon">🔍</span><span class="label">Search Cards</span>
-        </button>
-        <button class="fab-menu-item" onclick="closeFab(); openTagsOverview()">
-            <span class="icon">🏷️</span><span class="label">Tags Overview</span>
-        </button>
+        <button class="fab-menu-item" id="fabAddCard"><span class="icon">➕</span><span class="label">Add Card</span></button>
+        <button class="fab-menu-item" id="fabNewDeck"><span class="icon">🗂️</span><span class="label">New Deck</span></button>
+        <button class="fab-menu-item" id="fabSearch"><span class="icon">🔍</span><span class="label">Search Cards</span></button>
+        <button class="fab-menu-item" id="fabTags"><span class="icon">🏷️</span><span class="label">Tags Overview</span></button>
         <hr class="fab-menu-divider">
-        <button class="fab-menu-item" onclick="closeFab(); importCSV()">
-            <span class="icon">📥</span><span class="label">Import CSV</span>
-        </button>
-        <button class="fab-menu-item" onclick="closeFab(); exportCSV()">
-            <span class="icon">📤</span><span class="label">Export CSV</span>
-        </button>
+        <button class="fab-menu-item" id="fabImportCSV"><span class="icon">📥</span><span class="label">Import CSV</span></button>
+        <button class="fab-menu-item" id="fabExportCSV"><span class="icon">📤</span><span class="label">Export CSV</span></button>
         <hr class="fab-menu-divider">
-        <button class="fab-menu-item" onclick="closeFab(); pushToDrive()">
-            <span class="icon">☁️</span><span class="label">Push to Drive</span>
-        </button>
-        <button class="fab-menu-item" onclick="closeFab(); pullFromDrive()">
-            <span class="icon">☁️</span><span class="label">Pull from Drive</span>
-        </button>
+        <button class="fab-menu-item" id="fabPushDrive"><span class="icon">☁️</span><span class="label">Push to Drive</span></button>
+        <button class="fab-menu-item" id="fabPullDrive"><span class="icon">☁️</span><span class="label">Pull from Drive</span></button>
         <hr class="fab-menu-divider">
-        <button class="fab-menu-item" onclick="closeFab(); resetProgress()">
-            <span class="icon">🔄</span><span class="label">Reset Progress</span>
-        </button>
+        <button class="fab-menu-item" id="fabResetProgress"><span class="icon">🔄</span><span class="label">Reset Progress</span></button>
     </div>
-    <button class="fab" id="fabButton" onclick="toggleFab()">+</button>
+    <button class="fab" id="fabButton">+</button>
 </div>
 
 <input type="file" id="fileInput" class="hidden-file-input" accept=".csv">
@@ -793,7 +773,6 @@ function saveData() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        updateBadge();
         renderHome();
     }, 50);
 }
@@ -842,7 +821,7 @@ function getStoredTheme() {
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('cjaycards_theme', theme);
-    document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+    document.getElementById('themeBtn').textContent = theme === 'dark' ? '🌙' : '☀️';
 }
 
 function toggleTheme() {
@@ -1179,17 +1158,21 @@ function openModal(type, deckId, cardId) {
             <label>Color</label>
             <div class="color-picker" id="deckColorPicker">
                 ${['#2563eb','#dc2626','#16a34a','#eab308','#8b5cf6','#f97316','#ec4899','#14b8a6'].map(c => 
-                    `<div class="color-option ${c === '#2563eb' ? 'selected' : ''}" style="background:${c}" onclick="selectColor(this, '${c}')" data-color="${c}"></div>`
+                    `<div class="color-option ${c === '#2563eb' ? 'selected' : ''}" style="background:${c}" data-color="${c}"></div>`
                 ).join('')}
             </div>
             <input type="hidden" id="selectedDeckColor" value="#2563eb">
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmNewDeck()">Create</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Create</button>
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => document.getElementById('modalDeckName')?.focus(), 100);
+        setTimeout(() => {
+            const input = document.getElementById('modalDeckName');
+            if (input) input.focus();
+            setupModalButtons('newDeck');
+        }, 100);
         return;
     }
     
@@ -1211,12 +1194,16 @@ function openModal(type, deckId, cardId) {
             <label>Tags (comma-separated)</label>
             <input id="modalTags" placeholder="e.g. geography, exam, weak">
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmAddCard('${deckId}')">Add Card</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Add Card</button>
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => document.getElementById('modalFront')?.focus(), 100);
+        setTimeout(() => {
+            const input = document.getElementById('modalFront');
+            if (input) input.focus();
+            setupModalButtons('addCard', deckId);
+        }, 100);
         return;
     }
     
@@ -1235,12 +1222,16 @@ function openModal(type, deckId, cardId) {
             <label>Tags (comma-separated)</label>
             <input id="modalTags" value="${card.tags ? card.tags.join(', ') : ''}">
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmEditCard('${deckId}','${cardId}')">Save</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Save</button>
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => document.getElementById('modalFront')?.focus(), 100);
+        setTimeout(() => {
+            const input = document.getElementById('modalFront');
+            if (input) input.focus();
+            setupModalButtons('editCard', deckId, cardId);
+        }, 100);
         return;
     }
     
@@ -1258,8 +1249,8 @@ function openModal(type, deckId, cardId) {
                         ${c.tags && c.tags.length > 0 ? `<div class="card-tags-sm"><span>${c.tags.join('</span><span>')}</span></div>` : ''}
                     </div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
-                        <span class="del" onclick="openModal('editCard','${deckId}','${c.id}')" style="background:var(--accent);color:#fff;">✎</span>
-                        <span class="del" onclick="deleteCard('${deckId}','${c.id}')">✕</span>
+                        <span class="del" data-action="editCard" data-deck="${deckId}" data-card="${c.id}">✎</span>
+                        <span class="del" data-action="deleteCard" data-deck="${deckId}" data-card="${c.id}">✕</span>
                     </div>
                 </div>
             `).join('');
@@ -1270,7 +1261,7 @@ function openModal(type, deckId, cardId) {
             <label>Color</label>
             <div class="color-picker" id="deckColorPicker">
                 ${['#2563eb','#dc2626','#16a34a','#eab308','#8b5cf6','#f97316','#ec4899','#14b8a6'].map(c => 
-                    `<div class="color-option ${c === deck.color ? 'selected' : ''}" style="background:${c}" onclick="selectColor(this, '${c}')" data-color="${c}"></div>`
+                    `<div class="color-option ${c === deck.color ? 'selected' : ''}" style="background:${c}" data-color="${c}"></div>`
                 ).join('')}
             </div>
             <input type="hidden" id="selectedDeckColor" value="${deck.color || '#2563eb'}">
@@ -1278,13 +1269,18 @@ function openModal(type, deckId, cardId) {
             <input id="modalDeckName" value="${deck.name}">
             <div class="card-list-modal">${cardHtml}</div>
             <div class="btn-row" style="flex-wrap:wrap;">
-                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal();openModal('addCard','${deckId}')">+ Add Card</button>
-                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal();renameDeck('${deckId}')">Rename</button>
-                <button class="btn btn-danger" style="flex:1;" onclick="closeModal();deleteDeck('${deckId}')">Delete</button>
-                <button class="btn btn-neutral" style="flex:1;" onclick="closeModal()">Done</button>
+                <button class="btn btn-neutral" id="modalAddCardBtn" style="flex:1;">+ Add Card</button>
+                <button class="btn btn-neutral" id="modalRenameBtn" style="flex:1;">Rename</button>
+                <button class="btn btn-danger" id="modalDeleteBtn" style="flex:1;">Delete</button>
+                <button class="btn btn-neutral" id="modalDoneBtn" style="flex:1;">Done</button>
             </div>
         `;
         overlay.classList.add('active');
+        setTimeout(() => {
+            setupModalButtons('manageDeck', deckId);
+            setupCardListActions(deckId);
+            setupColorPicker();
+        }, 100);
         return;
     }
     
@@ -1292,14 +1288,22 @@ function openModal(type, deckId, cardId) {
         content.innerHTML = `
             <h2>Search Cards</h2>
             <p class="sub">Search by front, back, or tags (use #tagname)</p>
-            <input id="searchInput" placeholder="Type to search..." oninput="liveSearch()" autofocus>
+            <input id="searchInput" placeholder="Type to search..." autofocus>
             <div id="searchResults" style="margin-top:12px; max-height:300px; overflow-y:auto;"></div>
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Close</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Close</button>
             </div>
         `;
         overlay.classList.add('active');
-        setTimeout(() => document.getElementById('searchInput')?.focus(), 100);
+        setTimeout(() => {
+            const input = document.getElementById('searchInput');
+            if (input) {
+                input.addEventListener('input', liveSearch);
+                liveSearch();
+                input.focus();
+            }
+            setupModalButtons('search');
+        }, 100);
         return;
     }
     
@@ -1327,10 +1331,11 @@ function openModal(type, deckId, cardId) {
             <p class="sub">All tags across all decks</p>
             <div style="max-height:300px; overflow-y:auto;">${html}</div>
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Close</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Close</button>
             </div>
         `;
         overlay.classList.add('active');
+        setTimeout(() => setupModalButtons('tagsOverview'), 100);
         return;
     }
     
@@ -1346,19 +1351,93 @@ function openModal(type, deckId, cardId) {
                 ${deckOptions}
             </select>
             <div class="btn-row">
-                <button class="btn btn-neutral" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-danger" onclick="confirmResetProgress()">Reset</button>
+                <button class="btn btn-neutral" id="modalCancelBtn">Cancel</button>
+                <button class="btn btn-danger" id="modalConfirmBtn">Reset</button>
             </div>
         `;
         overlay.classList.add('active');
+        setTimeout(() => setupModalButtons('resetProgress'), 100);
         return;
     }
 }
 
-function selectColor(el, color) {
-    document.querySelectorAll('.color-option').forEach(c => c.classList.remove('selected'));
-    el.classList.add('selected');
-    document.getElementById('selectedDeckColor').value = color;
+function setupColorPicker() {
+    document.querySelectorAll('.color-option').forEach(el => {
+        el.addEventListener('click', function() {
+            document.querySelectorAll('.color-option').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            document.getElementById('selectedDeckColor').value = this.dataset.color;
+        });
+    });
+}
+
+function setupCardListActions(deckId) {
+    document.querySelectorAll('.card-list-item .del').forEach(el => {
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const action = this.dataset.action;
+            const cardId = this.dataset.card;
+            if (action === 'editCard') {
+                openModal('editCard', deckId, cardId);
+            } else if (action === 'deleteCard') {
+                deleteCard(deckId, cardId);
+            }
+        });
+    });
+}
+
+function setupModalButtons(type, deckId, cardId) {
+    const confirmBtn = document.getElementById('modalConfirmBtn');
+    const cancelBtn = document.getElementById('modalCancelBtn');
+    const doneBtn = document.getElementById('modalDoneBtn');
+    const addCardBtn = document.getElementById('modalAddCardBtn');
+    const renameBtn = document.getElementById('modalRenameBtn');
+    const deleteBtn = document.getElementById('modalDeleteBtn');
+    
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (type === 'newDeck') confirmNewDeck();
+            else if (type === 'addCard') confirmAddCard(deckId);
+            else if (type === 'editCard') confirmEditCard(deckId, cardId);
+            else if (type === 'resetProgress') confirmResetProgress();
+        });
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeModal);
+    }
+    
+    if (doneBtn) {
+        doneBtn.addEventListener('click', closeModal);
+    }
+    
+    if (addCardBtn) {
+        addCardBtn.addEventListener('click', function() {
+            closeModal();
+            openModal('addCard', deckId);
+        });
+    }
+    
+    if (renameBtn) {
+        renameBtn.addEventListener('click', function() {
+            const nameInput = document.getElementById('modalDeckName');
+            if (nameInput) {
+                const newName = nameInput.value.trim();
+                if (newName) {
+                    data.decks[deckId].name = newName;
+                    saveData();
+                    showToast('Deck renamed!');
+                    openModal('manageDeck', deckId);
+                }
+            }
+        });
+    }
+    
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            deleteDeck(deckId);
+        });
+    }
 }
 
 function closeModal() {
@@ -1425,19 +1504,11 @@ function deleteCard(deckId, cardId) {
     renderHome();
 }
 
-function renameDeck(deckId) {
-    const newName = prompt('New deck name:', data.decks[deckId].name);
-    if (newName && newName.trim()) {
-        data.decks[deckId].name = newName.trim();
-        saveData();
-        renderHome();
-    }
-}
-
 function deleteDeck(id) {
     if (!confirm(`Delete "${data.decks[id].name}" and all its cards?`)) return;
     delete data.decks[id];
     saveData();
+    closeModal();
     renderHome();
     renderSettings();
 }
@@ -1448,13 +1519,6 @@ function deleteDeck(id) {
 function openSearch() {
     closeFab();
     openModal('search');
-    setTimeout(() => {
-        const input = document.getElementById('searchInput');
-        if (input) {
-            input.addEventListener('input', liveSearch);
-            liveSearch();
-        }
-    }, 100);
 }
 
 function liveSearch() {
@@ -1487,9 +1551,18 @@ function liveSearch() {
                 <div class="deck-name">${m.deckName}</div>
                 ${m.tags && m.tags.length > 0 ? `<div class="tags-sm"><span>${m.tags.join('</span><span>')}</span></div>` : ''}
             </div>
-            <button class="btn btn-sm btn-neutral" onclick="closeModal();startStudy('${m.deckId}')">Study</button>
+            <button class="btn btn-sm btn-neutral" data-action="studyFromSearch" data-deck="${m.deckId}">Study</button>
         </div>
     `).join('');
+    
+    // Attach event listeners to search result study buttons
+    results.querySelectorAll('[data-action="studyFromSearch"]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const deckId = this.dataset.deck;
+            closeModal();
+            startStudy(deckId);
+        });
+    });
 }
 
 function openTagsOverview() {
@@ -1498,7 +1571,7 @@ function openTagsOverview() {
 }
 
 // ============================================================
-// RENDER: HOME (Optimized)
+// RENDER: HOME
 // ============================================================
 function renderHome() {
     const container = document.getElementById('deckList');
@@ -1539,17 +1612,31 @@ function renderHome() {
                     <p>${due} due · ${deck.cards.length} total</p>
                 </div>
                 <div class="actions">
-                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); selectedDeckId='${id}';startStudy('${id}')">Study</button>
-                    <button class="btn btn-neutral btn-sm" onclick="event.stopPropagation(); selectedDeckId='${id}';openModal('manageDeck','${id}')">Edit</button>
+                    <button class="btn btn-primary btn-sm" data-action="studyDeck" data-deck="${id}">Study</button>
+                    <button class="btn btn-neutral btn-sm" data-action="editDeck" data-deck="${id}">Edit</button>
                 </div>
             </div>
         `;
     }).join('');
-    updateBadge();
-}
-
-function updateBadge() {
-    // No-op, kept for compatibility
+    
+    // Attach event listeners to deck cards
+    container.querySelectorAll('[data-action="studyDeck"]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const id = this.dataset.deck;
+            selectedDeckId = id;
+            startStudy(id);
+        });
+    });
+    
+    container.querySelectorAll('[data-action="editDeck"]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const id = this.dataset.deck;
+            selectedDeckId = id;
+            openModal('manageDeck', id);
+        });
+    });
 }
 
 // ============================================================
@@ -1577,7 +1664,7 @@ function renderCard() {
     const btns = document.getElementById('intervalBtns');
     const complete = document.getElementById('studyComplete');
     const actions = document.getElementById('studyActions');
-    const revealBtn = document.querySelector('#studyActions .btn-neutral');
+    const revealBtn = document.getElementById('flipCardBtn');
     const progressFill = document.getElementById('studyProgressFill');
     
     if (currentCardIndex >= studyQueue.length) {
@@ -1621,16 +1708,24 @@ function updateIntervalButtons() {
     container.innerHTML = labelKeys.map((key, i) => {
         const label = labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
         const display = getIntervalDisplay(intervals[i]);
-        return `<button class="btn" onclick="answerCard(${i})">${label} (${display})</button>`;
+        return `<button class="btn" data-action="answerCard" data-choice="${i}">${label} (${display})</button>`;
     }).join('');
     container.classList.remove('hidden');
+    
+    // Attach event listeners to interval buttons
+    container.querySelectorAll('[data-action="answerCard"]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const choice = parseInt(this.dataset.choice);
+            answerCard(choice);
+        });
+    });
 }
 
 function flipCard() {
     if (isFlipped) return;
     isFlipped = true;
     document.getElementById('cardBack').classList.add('show');
-    const revealBtn = document.querySelector('#studyActions .btn-neutral');
+    const revealBtn = document.getElementById('flipCardBtn');
     if (revealBtn) revealBtn.classList.add('hidden');
     document.getElementById('intervalBtns').classList.remove('hidden');
 }
@@ -1843,48 +1938,86 @@ function resetAllData() {
 }
 
 // ============================================================
+// EVENT BINDING (All click events centralized)
+// ============================================================
+function bindEvents() {
+    // Top bar
+    document.getElementById('searchBtn').addEventListener('click', openSearch);
+    document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+    document.getElementById('homeBtn').addEventListener('click', function() { showScreen('home'); });
+    document.getElementById('settingsBtn').addEventListener('click', function() { showScreen('settings'); });
+    
+    // Study
+    document.getElementById('exitStudyBtn').addEventListener('click', exitStudy);
+    document.getElementById('flipCardBtn').addEventListener('click', flipCard);
+    document.getElementById('skipCardBtn').addEventListener('click', skipCard);
+    document.getElementById('studyCompleteBtn').addEventListener('click', exitStudy);
+    
+    // Settings
+    document.getElementById('saveLabelsBtn').addEventListener('click', saveButtonLabels);
+    document.getElementById('googleClientId').addEventListener('change', saveGoogleClientId);
+    document.getElementById('connectDriveBtn').addEventListener('click', connectGoogleDrive);
+    document.getElementById('pushDriveBtn').addEventListener('click', pushToDrive);
+    document.getElementById('pullDriveBtn').addEventListener('click', pullFromDrive);
+    document.getElementById('exportBackupBtn').addEventListener('click', exportBackup);
+    document.getElementById('importBackupBtn').addEventListener('click', importBackup);
+    document.getElementById('resetAllBtn').addEventListener('click', resetAllData);
+    
+    // FAB
+    document.getElementById('fabButton').addEventListener('click', toggleFab);
+    document.getElementById('fabAddCard').addEventListener('click', function() { closeFab(); openModal('addCard', getSelectedDeckId()); });
+    document.getElementById('fabNewDeck').addEventListener('click', function() { closeFab(); openModal('newDeck'); });
+    document.getElementById('fabSearch').addEventListener('click', function() { closeFab(); openSearch(); });
+    document.getElementById('fabTags').addEventListener('click', function() { closeFab(); openTagsOverview(); });
+    document.getElementById('fabImportCSV').addEventListener('click', function() { closeFab(); importCSV(); });
+    document.getElementById('fabExportCSV').addEventListener('click', function() { closeFab(); exportCSV(); });
+    document.getElementById('fabPushDrive').addEventListener('click', function() { closeFab(); pushToDrive(); });
+    document.getElementById('fabPullDrive').addEventListener('click', function() { closeFab(); pullFromDrive(); });
+    document.getElementById('fabResetProgress').addEventListener('click', function() { closeFab(); resetProgress(); });
+    
+    // Modal overlay close
+    document.getElementById('modalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+    
+    // Collapsible groups
+    document.querySelectorAll('.group-header').forEach(header => {
+        header.addEventListener('click', function() { toggleGroup(this); });
+    });
+}
+
+// ============================================================
 // BOOT
 // ============================================================
 renderHome();
 renderSettings();
+bindEvents();
 
-// Expose to global
+// Expose to global for inline calls (if any remain)
 window.openModal = openModal;
 window.closeModal = closeModal;
-window.confirmNewDeck = confirmNewDeck;
-window.confirmAddCard = confirmAddCard;
-window.confirmEditCard = confirmEditCard;
-window.deleteCard = deleteCard;
-window.renameDeck = renameDeck;
-window.deleteDeck = deleteDeck;
 window.startStudy = startStudy;
-window.flipCard = flipCard;
-window.answerCard = answerCard;
-window.skipCard = skipCard;
 window.exitStudy = exitStudy;
 window.showScreen = showScreen;
-window.renderSettings = renderSettings;
-window.resetAllData = resetAllData;
 window.toggleTheme = toggleTheme;
-window.openSearch = openSearch;
-window.liveSearch = liveSearch;
-window.openTagsOverview = openTagsOverview;
-window.importCSV = importCSV;
-window.exportCSV = exportCSV;
-window.resetProgress = resetProgress;
-window.confirmResetProgress = confirmResetProgress;
 window.toggleFab = toggleFab;
 window.closeFab = closeFab;
-window.saveButtonLabels = saveButtonLabels;
-window.getSelectedDeckId = getSelectedDeckId;
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
 window.saveGoogleClientId = saveGoogleClientId;
 window.connectGoogleDrive = connectGoogleDrive;
 window.pushToDrive = pushToDrive;
 window.pullFromDrive = pullFromDrive;
+window.resetAllData = resetAllData;
 window.toggleGroup = toggleGroup;
-window.selectColor = selectColor;
+window.deleteCard = deleteCard;
+window.deleteDeck = deleteDeck;
+window.openSearch = openSearch;
+window.openTagsOverview = openTagsOverview;
+window.importCSV = importCSV;
+window.exportCSV = exportCSV;
+window.resetProgress = resetProgress;
+window.liveSearch = liveSearch;
 </script>
 </body>
 </html>
