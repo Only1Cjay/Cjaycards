@@ -44,7 +44,7 @@
             --font-body: 'Inter', sans-serif;
             --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
             --card-shadow-hover: 0 6px 24px rgba(0,0,0,0.4);
-            --transition-speed: 0.2s;
+            --transition-speed: 0.15s;
         }
 
         [data-theme="light"] {
@@ -81,6 +81,7 @@
             padding: 16px 16px 90px 16px;
             transition: background var(--transition-speed), color var(--transition-speed);
             overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
@@ -120,9 +121,9 @@
             font-size: 15px;
             color: var(--text-secondary);
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
-        .top-bar .icon-btn:hover { background: var(--accent); color: #fff; }
-        .top-bar .icon-btn:active { transform: scale(0.9); }
+        .top-bar .icon-btn:active { transform: scale(0.9); background: var(--accent); color: #fff; }
 
         .btn {
             padding: 10px 20px;
@@ -136,23 +137,24 @@
             background: var(--btn-neutral);
             color: var(--btn-neutral-text);
             position: relative;
+            touch-action: manipulation;
+            min-height: 44px;
         }
-        .btn:hover { opacity: 0.85; }
         .btn:active { transform: scale(0.96); }
         .btn-primary {
             background: var(--btn-primary);
             color: var(--btn-primary-text);
         }
-        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:active { background: var(--accent-hover); }
         .btn-neutral { background: var(--btn-neutral); color: var(--btn-neutral-text); }
-        .btn-neutral:hover { background: var(--btn-neutral-hover); color: #fff; }
+        .btn-neutral:active { background: var(--btn-neutral-hover); color: #fff; }
         .btn-success { background: var(--success); color: #fff; }
         .btn-danger { background: var(--danger); color: #fff; }
         .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
-        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        .btn-sm { padding: 6px 14px; font-size: 12px; min-height: 36px; }
         .btn-block { width: 100%; padding: 14px; }
         
-        .screen { display: none; animation: fadeIn 0.25s ease; }
+        .screen { display: none; animation: fadeIn 0.2s ease; }
         .screen.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
@@ -189,8 +191,8 @@
             box-shadow: var(--card-shadow);
             transition: all var(--transition-speed);
             border-left: 4px solid var(--deck-border);
+            touch-action: manipulation;
         }
-        .deck-card:hover { box-shadow: var(--card-shadow-hover); }
         .deck-card:active { transform: scale(0.98); }
         .deck-card .info h3 {
             font-family: var(--font-header);
@@ -231,7 +233,7 @@
             margin-top: 12px;
             display: none;
         }
-        .card-container .back.show { display: block; animation: fadeIn 0.2s ease; }
+        .card-container .back.show { display: block; animation: fadeIn 0.15s ease; }
         .card-container .counter { font-size: 14px; color: var(--text-muted); margin-top: 16px; font-weight: 500; }
         .card-container .card-tags { font-size: 12px; color: var(--text-muted); margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
         .card-container .card-tags span { background: var(--bg-secondary); padding: 2px 10px; border-radius: 12px; color: var(--text-secondary); }
@@ -253,9 +255,9 @@
             font-weight: 600;
             transition: var(--transition-speed);
             font-family: var(--font-body);
+            min-height: 48px;
         }
-        .interval-btns .btn:hover { background: var(--btn-neutral-hover); color: #fff; }
-        .interval-btns .btn:active { transform: scale(0.95); }
+        .interval-btns .btn:active { transform: scale(0.95); background: var(--btn-neutral-hover); color: #fff; }
         
         .settings-group {
             background: var(--bg-card);
@@ -271,8 +273,9 @@
             align-items: center;
             cursor: pointer;
             user-select: none;
+            touch-action: manipulation;
         }
-        .settings-group .group-header:hover { opacity: 0.8; }
+        .settings-group .group-header:active { opacity: 0.6; }
         .settings-group .group-header h3 {
             font-family: var(--font-header);
             font-weight: 700;
@@ -357,7 +360,7 @@
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
-            animation: slideUp 0.25s ease;
+            animation: slideUp 0.2s ease;
             box-shadow: var(--card-shadow-hover);
             transition: all var(--transition-speed);
         }
@@ -396,8 +399,8 @@
             border: 3px solid transparent;
             cursor: pointer;
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
-        .color-picker .color-option:hover { transform: scale(1.1); }
         .color-picker .color-option:active { transform: scale(0.9); }
         .color-picker .color-option.selected { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-primary); }
         
@@ -424,9 +427,9 @@
             background: var(--bg-secondary);
             font-weight: 600;
             font-size: 14px;
+            touch-action: manipulation;
         }
-        .card-list-item .del:hover { opacity: 0.7; }
-        .card-list-item .del:active { opacity: 0.5; }
+        .card-list-item .del:active { opacity: 0.6; }
         
         .fab-container {
             position: fixed;
@@ -453,8 +456,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            touch-action: manipulation;
         }
-        .fab:hover { opacity: 0.9; }
         .fab:active { transform: scale(0.9); }
         .fab.open { transform: rotate(45deg); background: var(--danger); }
         
@@ -489,9 +492,9 @@
             font-weight: 500;
             cursor: pointer;
             transition: var(--transition-speed);
+            touch-action: manipulation;
         }
-        .fab-menu-item:hover { background: var(--bg-secondary); }
-        .fab-menu-item:active { opacity: 0.7; }
+        .fab-menu-item:active { background: var(--bg-secondary); }
         .fab-menu-item .icon { font-size: 18px; width: 24px; text-align: center; color: var(--text-secondary); }
         .fab-menu-item .label { flex: 1; text-align: left; }
         .fab-menu-divider { border: none; border-top: 1px solid var(--border-color); margin: 4px 12px; }
