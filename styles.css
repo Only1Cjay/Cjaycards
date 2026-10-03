@@ -1231,19 +1231,7 @@ mark {
 }
 .theme-circle.active .theme-circle-name { color: var(--text); font-weight: 700; }
 
-/* Deck intervals settings */
-.interval-deck {
-  padding: 16px 18px;
-}
-.interval-deck + .interval-deck { border-top: 1px solid var(--line); }
-.interval-deck-name {
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-head);
-  font-size: 14px; font-weight: 700;
-  color: var(--text);
-  margin-bottom: 10px;
-}
-.interval-deck-name .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* Interval inputs (used inside intervals sheet) */
 .interval-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
