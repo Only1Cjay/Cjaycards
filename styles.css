@@ -211,7 +211,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 }
 .header-left { min-width: 0; display: flex; align-items: center; gap: 10px; }
 .header-logo { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: block; }
-.app-title { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.02em; }
+.header-logo .logo-bg { fill: var(--accent); transition: fill 0.25s var(--ease); }.app-title { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.02em; }
 .title-cjay { color: var(--text); }
 .title-cards { color: var(--accent); }
 
