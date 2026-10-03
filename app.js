@@ -1563,9 +1563,12 @@
     sheet.className = 'modal-sheet';
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
-      <h3 class="sheet-title">${escapeHTML(deck.name)} · Intervals</h3>
-      <p class="sheet-body">Days until a card resurfaces after each rating.</p>
-      <div class="field" style="padding-left:0; padding-right:0;">
+      <div class="intervals-head">
+        <span class="intervals-dot" style="background:${deck.color}"></span>
+        <h3 class="intervals-title">${escapeHTML(deck.name)}</h3>
+      </div>
+      <p class="sheet-body" style="padding: 0 20px 20px;">Days until a card resurfaces after each rating.</p>
+      <div style="padding: 0 20px 8px;">
         <div class="interval-grid">
           ${RATING_LABELS.map((label, i) => `
             <div class="interval-cell">
