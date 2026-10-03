@@ -577,6 +577,9 @@
     const mastered = cards.filter(Storage.isMastered).length;
 
     const menuHTML = `
+      <button class="icon-btn" data-act="deck-intervals" aria-label="Deck intervals" title="Intervals">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
       <button class="icon-btn" data-act="deck-menu" aria-label="Deck menu">
         <i class="fa-solid fa-ellipsis"></i>
       </button>
@@ -612,6 +615,11 @@
     root.querySelector('[data-act="deck-menu"]').addEventListener('click', (e) => {
       e.stopPropagation();
       openDeckMenu(deck, e.currentTarget);
+    });
+
+    root.querySelector('[data-act="deck-intervals"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openIntervalsSheet(deck.id);
     });
 
     root.querySelectorAll('.sort-chip').forEach((c) => {
@@ -1179,13 +1187,7 @@
           <div class="settings-section-hint">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
         </section>
 
-        ${!ro && state.data.decks.length ? `
-        <section class="settings-section">
-          <div class="settings-section-title">Deck intervals</div>
-          <div class="settings-card" id="intervalList"></div>
-          <div class="settings-section-hint">Days until a card resurfaces for each rating. Smaller values = more frequent review.</div>
-        </section>
-        ` : ''}
+
 
         ${!ro ? `
         <section class="settings-section">
@@ -1266,44 +1268,7 @@
       });
     });
 
-    // Intervals
-    if (!ro && state.data.decks.length) {
-      const list = root.querySelector('#intervalList');
-      state.data.decks.forEach((deck) => {
-        const row = document.createElement('div');
-        row.className = 'interval-deck';
-        row.innerHTML = `
-          <div class="interval-deck-name">
-            <span class="dot" style="background:${deck.color}"></span>
-            ${escapeHTML(deck.name)}
-          </div>
-          <div class="interval-grid">
-            ${RATING_LABELS.map((label, i) => `
-              <div class="interval-cell">
-                <label>${label}</label>
-                <input type="number" min="0" step="0.01" value="${deck.intervals[i]}" data-deck="${deck.id}" data-idx="${i}" inputmode="decimal">
-              </div>
-            `).join('')}
-          </div>
-        `;
-        row.querySelectorAll('input').forEach((inp) => {
-          inp.addEventListener('change', () => {
-            const deckId = inp.dataset.deck;
-            const idx = Number(inp.dataset.idx);
-            const v = Math.max(0, parseFloat(inp.value) || 0.01);
-            const d = Storage.getDeck(deckId);
-            const intervals = [...d.intervals];
-            intervals[idx] = v;
-            Storage.updateDeck(deckId, { intervals });
-            state.data = Storage.getData();
-            inp.value = v;
-          });
-        });
-        list.appendChild(row);
-      });
-    }
-
-    // Drive
+     // Drive
     const driveInput = root.querySelector('#driveClientId');
     if (driveInput) {
       driveInput.value = getStoredClientId();
