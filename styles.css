@@ -1231,6 +1231,23 @@ mark {
 }
 .theme-circle.active .theme-circle-name { color: var(--text); font-weight: 700; }
 
+/* Intervals sheet header */
+.intervals-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 6px;
+}
+.intervals-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.intervals-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
 /* Interval inputs (used inside intervals sheet) */
 .interval-grid {
   display: grid;
