@@ -3,7 +3,7 @@
    Bump CACHE_VERSION on every deploy.
    ============================================================ */
 
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v1.0.2';
 const CACHE_NAME = `cjaycards-${CACHE_VERSION}`;
 
 const SHELL = [
