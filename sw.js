@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'cjaycards-v1.0.8';
+const CACHE_VERSION = 'cjaycards-v1.1.0';
 
 const APP_SHELL = [
     './',
