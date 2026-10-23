@@ -1442,3 +1442,44 @@ mark {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* ---------------------------------------------------------- */
+/* Phase 1 Additions (Cloze & Typing)                          */
+/* ---------------------------------------------------------- */
+.study-cloze-blank {
+  display: inline-block;
+  padding: 0 8px;
+  background: var(--card-2);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px 4px 0 0;
+  color: transparent;
+  min-width: 60px;
+  text-align: center;
+}
+
+.study-cloze-answer {
+  display: inline-block;
+  padding: 0 8px;
+  background: var(--accent-soft);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px 4px 0 0;
+  color: var(--accent-deep);
+  font-weight: 700;
+  text-align: center;
+}
+
+.study-typing-input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--accent);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 18px;
+  text-align: center;
+  outline: none;
+  box-shadow: 0 4px 12px var(--accent-glow);
+  margin-top: 10px;
+}
