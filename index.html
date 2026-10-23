@@ -1,118 +1,237 @@
 <!DOCTYPE html>
-<html lang="en" data-family="slate" data-mode="light">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#212A33">
-<meta name="description" content="CjayCards — spaced repetition flashcards. Create decks, study daily, master over time.">
-<title>CjayCards — Spaced Repetition</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CjayCards</title>
 
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
+    <script>
+    (function() {
+        try {
+            var theme = localStorage.getItem('cjaycards_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    })();
+    </script>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <meta name="theme-color" content="#0a1628">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CjayCards">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="apple-touch-icon" href="icon.svg">
 
-<script src="https://apis.google.com/js/api.js" async defer></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
 
-<script>
-  (function(){
-    try {
-      var fam = localStorage.getItem('cjaycards.family') || 'slate';
-      var mode = localStorage.getItem('cjaycards.mode') || 'light';
-      document.documentElement.setAttribute('data-family', fam);
-      document.documentElement.setAttribute('data-mode', mode);
-    } catch(e){}
-  })();
-</script>
-
-<link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="offline-banner" id="offlineBanner" role="status" aria-live="polite">
-  <i class="fa-solid fa-wifi"></i>
-  <span>You're offline — changes will still save locally</span>
+<div class="offline-banner" id="offlineBanner">No internet connection</div>
+<div class="toast" id="toast"></div>
+<div class="update-toast" id="updateToast">
+    <span>New version available</span>
+    <button id="updateRefreshBtn">Refresh</button>
+</div>
+<div class="undo-toast" id="undoToast">
+    <span id="undoText">Card deleted</span>
+    <button id="undoBtn">Undo</button>
 </div>
 
-<header class="app-header">
-  <div class="header-left">
-    <svg class="header-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect width="512" height="512" rx="120" class="logo-bg"/>
-      <rect x="128" y="128" width="216" height="256" rx="22" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
-      <rect x="168" y="160" width="216" height="256" rx="22" class="logo-bg" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
-    </svg>
-    <h1 class="app-title"><span class="title-cjay">Cjay</span><span class="title-cards">Cards</span></h1>
-  </div>
-  <div class="header-right">
-    <button class="due-chip" id="dueChip" aria-label="Cards due now" title="Cards due now">
-      <i class="fa-solid fa-bolt"></i>
-      <span id="dueChipCount">0</span>
+<header class="topbar">
+    <button class="brand" id="brandBtn" aria-label="Home">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="5" width="14" height="16" rx="2"/>
+            <path d="M8 5V3a2 2 0 012-2h8a2 2 0 012 2v14a2 2 0 01-2 2h-2"/>
+        </svg>
+        <span class="brand-name">Cjay<span>Cards</span></span>
     </button>
-    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-      <i class="fa-solid fa-moon" id="themeIcon"></i>
-    </button>
-    <button class="icon-btn has-badge" id="menuBtn" aria-label="Open menu" title="Menu" aria-expanded="false">
-      <i class="fa-solid fa-bars"></i>
-      <span class="icon-badge" id="menuBadge" hidden></span>
-    </button>
-  </div>
+    <div class="topbar-actions">
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme"></button>
+        <button class="icon-btn" id="menuBtn" aria-label="Menu">
+            <svg class="icon-svg" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="popup-menu" id="popupMenu">
+            <button class="popup-item" data-menu="stats">
+                <svg class="icon-svg" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <span>Stats</span>
+            </button>
+            <button class="popup-item" data-menu="hardest">
+                <svg class="icon-svg" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span>Hardest cards</span>
+            </button>
+            <div class="popup-divider"></div>
+            <button class="popup-item" data-menu="settings">
+                <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+                <span>Settings</span>
+            </button>
+        </div>
+    </div>
 </header>
 
-<nav class="menu-dropdown" id="menuDropdown" hidden aria-label="Main menu">
-  <button class="menu-item" data-action="search"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span></button>
-  <button class="menu-item" data-action="tags"><i class="fa-solid fa-tag"></i><span>Tags</span></button>
-  <button class="menu-item" data-action="activity"><i class="fa-solid fa-chart-line"></i><span>Activity</span></button>
-  <button class="menu-item" data-action="settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
-  <div class="menu-divider"></div>
-  <button class="menu-item" data-action="tools"><i class="fa-solid fa-toolbox"></i><span>Tools</span></button>
-</nav>
-<div class="menu-backdrop" id="menuBackdrop" hidden></div>
-
-<div class="tab-bar" role="tablist">
-  <button class="tab active" data-tab="decks" role="tab" aria-selected="true">Decks</button>
-  <button class="tab" data-tab="due" role="tab" aria-selected="false">Due</button>
-</div>
-
 <main class="app-main">
-  <section id="screen-decks" class="screen active"></section>
-  <section id="screen-due" class="screen"></section>
+
+    <!-- HOME -->
+    <section id="view-home" class="view active">
+        <div class="stats-bar">
+            <div class="stat">
+                <span class="stat-num" id="statDecks">0</span>
+                <span class="stat-label">decks</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num" id="statDue">0</span>
+                <span class="stat-label">due today</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num" id="statCards">0</span>
+                <span class="stat-label">cards</span>
+            </div>
+        </div>
+        <div id="deckList" class="deck-list"></div>
+        <button class="btn btn-primary btn-block" id="newDeckBtn" style="margin-top:16px;">
+            <svg class="icon-svg sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New deck
+        </button>
+    </section>
+
+    <!-- DECK VIEW -->
+    <section id="view-deck" class="view">
+        <div class="view-toolbar">
+            <button class="btn btn-outline btn-sm" id="backFromDeckBtn">
+                <svg class="icon-svg sm" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Decks
+            </button>
+            <div class="view-toolbar-actions">
+                <button class="btn btn-primary btn-sm" id="startStudyBtn">
+                    <svg class="icon-svg sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Study
+                </button>
+                <button class="icon-btn" id="deckMenuBtn" aria-label="Deck options">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                </button>
+                <div class="popup-menu" id="deckMenu">
+                    <button class="popup-item" data-deck-action="tag">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        <span>Study by tag</span>
+                    </button>
+                    <button class="popup-item" data-deck-action="cram">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <span>Cram mode</span>
+                    </button>
+                    <div class="popup-divider"></div>
+                    <button class="popup-item" data-deck-action="edit">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        <span>Edit deck</span>
+                    </button>
+                    <button class="popup-item danger" data-deck-action="delete">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                        <span>Delete deck</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="deck-header">
+            <h2 class="deck-title" id="deckTitle">Deck</h2>
+            <p class="deck-meta" id="deckMeta"></p>
+        </div>
+
+        <div class="filter-pills" id="cardFilters">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="due">Due</button>
+            <button class="filter-pill" data-filter="leeches">Leeches</button>
+            <button class="filter-pill" data-filter="buried">Buried</button>
+        </div>
+
+        <div id="cardList" class="card-list"></div>
+
+        <button class="btn btn-primary btn-block" id="newCardBtn" style="margin-top:16px;">
+            <svg class="icon-svg sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New card
+        </button>
+    </section>
+
+    <!-- STUDY VIEW -->
+    <section id="view-study" class="view">
+        <div class="view-toolbar">
+            <button class="btn btn-outline btn-sm" id="exitStudyBtn">
+                <svg class="icon-svg sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Exit
+            </button>
+            <div class="study-progress" id="studyProgress">0 / 0</div>
+        </div>
+        <div id="studyBody" class="study-body"></div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="view">
+        <div class="view-toolbar">
+            <button class="btn btn-outline btn-sm" id="backFromSettingsBtn">
+                <svg class="icon-svg sm" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back
+            </button>
+        </div>
+        <h2 class="view-title">Settings</h2>
+
+        <div class="settings-group">
+            <button class="group-header" data-group="drive">
+                <h3>Google Drive backup</h3>
+                <span class="toggle-icon">▾</span>
+            </button>
+            <div class="group-content">
+                <p class="group-desc">Manually back up and restore your cards to Google Drive.</p>
+                <label>Client ID</label>
+                <input type="text" id="driveClientId" placeholder="Paste your Google client ID">
+                <div class="btn-row-inline">
+                    <button class="btn btn-primary btn-sm" id="connectDriveBtn">Connect</button>
+                    <button class="btn btn-outline btn-sm" id="drivePushBtn" disabled>Back up</button>
+                    <button class="btn btn-outline btn-sm" id="drivePullBtn" disabled>Restore</button>
+                </div>
+                <div id="driveStatus" class="status-line"></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <button class="group-header" data-group="backup">
+                <h3>Backup &amp; restore</h3>
+                <span class="toggle-icon">▾</span>
+            </button>
+            <div class="group-content">
+                <p class="group-desc">Save your data as a JSON file, or import a previous backup.</p>
+                <div class="btn-row-inline">
+                    <button class="btn btn-outline btn-sm" id="exportBtn">Export</button>
+                    <button class="btn btn-outline btn-sm" id="importBtn">Import</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <button class="group-header" data-group="about">
+                <h3>About</h3>
+                <span class="toggle-icon">▾</span>
+            </button>
+            <div class="group-content">
+                <div class="status-line">CjayCards <span id="appVersion">—</span></div>
+                <div class="status-line">Made by Only1Cjay</div>
+            </div>
+        </div>
+
+        <button class="btn btn-danger btn-block" id="resetBtn" style="margin-top:16px;">Reset all data</button>
+    </section>
+
 </main>
 
-<div class="fab-wrap">
-  <div class="fab-menu" id="fabMenu" hidden>
-    <button class="fab-item" data-action="add-card"><i class="fa-solid fa-plus"></i><span>Add Card</span></button>
-    <button class="fab-item" data-action="new-deck"><i class="fa-solid fa-layer-group"></i><span>New Deck</span></button>
-  </div>
-  <button class="fab" id="fabBtn" aria-label="Create" aria-expanded="false">
-    <i class="fa-solid fa-plus"></i>
-  </button>
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalContent"></div>
 </div>
 
-<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+<input type="file" id="backupInput" class="hidden-input" accept=".json">
 
-<div class="view-root" id="viewRoot" hidden></div>
-
-<div class="modal-root" id="modalRoot" hidden>
-  <div class="modal-backdrop" id="modalBackdrop"></div>
-  <div class="modal-slot" id="modalSlot"></div>
-</div>
-
-<div class="install-banner" id="installBanner" hidden>
-  <i class="fa-solid fa-circle-down"></i>
-  <div class="install-text">
-    <strong>Install CjayCards</strong>
-    <span>Add to your home screen for quick access</span>
-  </div>
-  <button class="install-btn" id="installAccept">Install</button>
-  <button class="install-dismiss" id="installDismiss" aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
-</div>
-
-<script src="storage.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
