@@ -1,1729 +1,1860 @@
-// ============================================================
-// CONFIG
-// ============================================================
-const STORAGE_KEY = 'cjaycards_data';
-const THEME_KEY = 'cjaycards_theme';
-const DRIVE_CLIENT_KEY = 'cjaycards_drive_client';
-const DRIVE_TOKEN_KEY = 'cjaycards_drive_token';
-const LEECH_THRESHOLD = 5;
+/* ============================================================
+   CjayCards — app.js
+   ============================================================ */
 
-const DECK_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#eab308', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6'];
+(() => {
+  'use strict';
 
-const ICON_MOON = '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-const ICON_SUN = '<svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>';
-const ICON_CHEVRON = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+  const LS = {
+    family: 'cjaycards.family',
+    mode: 'cjaycards.mode',
+    installDismissed: 'cjaycards.installDismissed'
+  };
 
-// ============================================================
-// STATE
-// ============================================================
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-let state = loadState();
-let currentView = 'home';
-let currentDeckId = null;
-let cardFilter = 'all';
-let studySession = null;
-let editingCardId = null;
-let editingDeckId = null;
-let pendingDelete = null;
+  const state = {
+    readOnly: false,
+    demoMode: false,
+    data: null,
+    tab: 'decks',
+    sortMode: 'due',
+    currentDeckId: null,
+    study: null
+  };
 
-// ============================================================
-// PERSISTENCE
-// ============================================================
-function loadState() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            if (!parsed.decks) parsed.decks = {};
-            if (!parsed.cards) parsed.cards = {};
-            if (!parsed.deletedIds) parsed.deletedIds = { decks: [], cards: [] };
-            if (!parsed.studyStreak) parsed.studyStreak = { lastDate: null, count: 0 };
-            return parsed;
-        }
-    } catch (e) {}
-    return getDefaultState();
-}
+  const RATING_LABELS = ['Again', 'Hard', 'Good', 'Easy'];
+  const RATING_CLASSES = ['again', 'hard', 'good', 'easy'];
 
-function saveState() {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {}
-}
+  /* ---------------------------------------------------------- */
+  /* URL flags                                                   */
+  /* ---------------------------------------------------------- */
+  function parseUrlFlags() {
+    const params = new URLSearchParams(location.search);
+    state.demoMode = params.get('view') === '1';
+    state.readOnly = state.demoMode;
+  }
 
-// ============================================================
-// HELPERS
-// ============================================================
-function genId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
+  /* ---------------------------------------------------------- */
+  /* Theme                                                       */
+  /* ---------------------------------------------------------- */
+  const THEME_FAMILIES = [
+    { id: 'slate', name: 'Slate', c1: '#EFF3F7', c2: '#3D9BC9' },
+    { id: 'ink', name: 'Ink', c1: '#FAFAF7', c2: '#8AAF1D' },
+    { id: 'espresso', name: 'Espresso', c1: '#F5EFE4', c2: '#C99B62' }
+  ];
 
-function nowISO() {
-    return new Date().toISOString();
-}
+  function getFamily() { return document.documentElement.getAttribute('data-family') || 'slate'; }
+  function getMode() { return document.documentElement.getAttribute('data-mode') || 'light'; }
 
-function todayStart() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-}
+  function applyTheme(family, mode) {
+    document.documentElement.setAttribute('data-family', family);
+    document.documentElement.setAttribute('data-mode', mode);
 
-function tomorrowStart() {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(0, 0, 0, 0);
-    return d;
-}
+    const icon = $('#themeIcon');
+    if (icon) icon.className = mode === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
 
-function isDue(card) {
-    if (!card.dueDate) return true;
-    return new Date(card.dueDate) <= new Date();
-}
-
-function isBuried(card) {
-    if (!card.buried) return false;
-    if (!card.buriedUntil) return true;
-    return new Date(card.buriedUntil) > new Date();
-}
-
-function isLeech(card) {
-    return (card.failCount || 0) >= LEECH_THRESHOLD;
-}
-
-function formatInterval(days) {
-    if (days < 1 / 24) return '<1h';
-    if (days < 1) return Math.round(days * 24) + 'h';
-    if (days < 30) return Math.round(days) + 'd';
-    if (days < 365) return Math.round(days / 30) + 'mo';
-    return Math.round(days / 365) + 'y';
-}
-
-function formatDate(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    const diff = Date.now() - d.getTime();
-    if (diff < 60000) return 'just now';
-    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-    if (diff < 172800000) return 'yesterday';
-    if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
-}
-
-function getDeckColor(deckId) {
-    const d = state.decks[deckId];
-    return d?.color || DECK_COLORS[0];
-}
-
-// ============================================================
-// CLOZE PARSING
-// ============================================================
-function parseCloze(text) {
-    // Supports {{c1::answer}} or {{answer}}
-    const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
-    const matches = [];
-    let m;
-    while ((m = regex.exec(text)) !== null) {
-        matches.push({ full: m[0], answer: m[1], index: m.index });
-    }
-    return matches;
-}
-
-function renderClozeHidden(text) {
-    const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
-    return text.replace(regex, (_, answer) => {
-        return `<span class="study-cloze-blank">${'_'.repeat(Math.min(answer.length, 12))}</span>`;
-    });
-}
-
-function renderClozeRevealed(text) {
-    const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
-    return text.replace(regex, (_, answer) => {
-        return `<span class="study-cloze-answer">${escapeHtml(answer)}</span>`;
-    });
-}
-
-function clozeHasMarkers(text) {
-    return /\{\{(?:c\d+::)?[^}]+\}\}/.test(text || '');
-}
-
-// ============================================================
-// DATA CRUD — DECKS
-// ============================================================
-function createDeck(name, color) {
-    const id = genId();
-    state.decks[id] = {
-        id,
-        name: name.trim(),
-        color: color || DECK_COLORS[0],
-        intervals: [0.0417, 1, 3, 7],
-        createdAt: nowISO(),
-        updatedAt: nowISO()
-    };
-    saveState();
-    return id;
-}
-
-function updateDeck(deckId, updates) {
-    if (!state.decks[deckId]) return;
-    Object.assign(state.decks[deckId], updates, { updatedAt: nowISO() });
-    saveState();
-}
-
-function deleteDeck(deckId) {
-    if (!state.decks[deckId]) return;
-
-    const affectedCards = Object.values(state.cards).filter(c => c.deckId === deckId);
-    affectedCards.forEach(c => {
-        if (!state.deletedIds.cards.includes(c.id)) state.deletedIds.cards.push(c.id);
-    });
-    Object.keys(state.cards).forEach(id => {
-        if (state.cards[id].deckId === deckId) delete state.cards[id];
-    });
-
-    delete state.decks[deckId];
-    if (!state.deletedIds.decks.includes(deckId)) state.deletedIds.decks.push(deckId);
-    saveState();
-}
-
-// ============================================================
-// DATA CRUD — CARDS
-// ============================================================
-function createCard(deckId, data) {
-    const id = genId();
-    const now = nowISO();
-    const card = {
-        id,
-        deckId,
-        type: data.type || 'basic',
-        front: data.front || '',
-        back: data.back || '',
-        clozeText: data.clozeText || '',
-        tags: data.tags || [],
-        dueDate: data.dueDate || now,
-        step: 0,
-        ease: 2.5,
-        failCount: 0,
-        history: [],
-        favorite: false,
-        buried: false,
-        buriedUntil: null,
-        siblingId: data.siblingId || null,
-        createdAt: now,
-        updatedAt: now
-    };
-    state.cards[id] = card;
-    saveState();
-    return id;
-}
-
-function updateCard(cardId, updates) {
-    if (!state.cards[cardId]) return;
-    Object.assign(state.cards[cardId], updates, { updatedAt: nowISO() });
-    saveState();
-}
-
-function deleteCardWithSibling(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-
-    if (card.siblingId && state.cards[card.siblingId]) {
-        const sibling = state.cards[card.siblingId];
-        sibling.siblingId = null;
-    }
-
-    if (!state.deletedIds.cards.includes(cardId)) {
-        state.deletedIds.cards.push(cardId);
-    }
-    delete state.cards[cardId];
-    saveState();
-}
-
-function getCardsInDeck(deckId) {
-    return Object.values(state.cards).filter(c => c.deckId === deckId);
-}
-
-function getDueCards(deckId) {
-    return getCardsInDeck(deckId).filter(c => isDue(c) && !isBuried(c));
-}
-
-// ============================================================
-// THEME
-// ============================================================
-function getStoredTheme() {
-    return localStorage.getItem(THEME_KEY) || 'dark';
-}
-
-function applyTheme() {
-    const theme = getStoredTheme();
-    document.documentElement.setAttribute('data-theme', theme);
-    const btn = document.getElementById('themeBtn');
-    if (btn) btn.innerHTML = theme === 'dark' ? ICON_MOON : ICON_SUN;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a1628' : '#f0f4fa');
-}
-
-function toggleTheme() {
-    const next = getStoredTheme() === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(THEME_KEY, next);
-    applyTheme();
-}
-
-// ============================================================
-// TOASTS
-// ============================================================
-let toastTimeout;
-function showToast(msg) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => el.classList.remove('show'), 2200);
-}
-
-// ============================================================
-// MODAL
-// ============================================================
-function openModal(html) {
-    const overlay = document.getElementById('modalOverlay');
-    const content = document.getElementById('modalContent');
-    content.innerHTML = html;
-    overlay.classList.add('active');
-}
-
-function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('active');
-}
-
-// ============================================================
-// NAVIGATION
-// ============================================================
-function showView(view) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const target = document.getElementById('view-' + view);
-    if (target) target.classList.add('active');
-    currentView = view;
-
-    if (view === 'home') renderHome();
-    if (view === 'deck') renderDeck();
-    if (view === 'study') renderStudy();
-    if (view === 'settings') renderSettings();
-}
-
-function closeAllPopups(except) {
-    document.querySelectorAll('.popup-menu').forEach(m => {
-        if (m !== except) m.classList.remove('open');
-    });
-}
-
-// ============================================================
-// RENDER — HOME
-// ============================================================
-function renderHome() {
-    const deckIds = Object.keys(state.decks);
-    const totalDecks = deckIds.length;
-    const totalCards = Object.keys(state.cards).length;
-    const totalDue = Object.values(state.cards).filter(c => isDue(c) && !isBuried(c) && !c.archived).length;
-
-    document.getElementById('statDecks').textContent = totalDecks;
-    document.getElementById('statDue').textContent = totalDue;
-    document.getElementById('statCards').textContent = totalCards;
-
-    const list = document.getElementById('deckList');
-    if (deckIds.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <svg viewBox="0 0 24 24"><rect x="4" y="5" width="14" height="16" rx="2"/><path d="M8 5V3a2 2 0 012-2h8a2 2 0 012 2v14a2 2 0 01-2 2h-2"/></svg>
-                <h3>No decks yet</h3>
-                <p>Tap "New deck" below to get started.</p>
-            </div>
-        `;
-        return;
+    if (meta) {
+      const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+      meta.setAttribute('content', bg || '#EFF3F7');
     }
-
-    const sorted = deckIds.map(id => state.decks[id]).sort((a, b) => {
-        const da = new Date(a.updatedAt || a.createdAt);
-        const db = new Date(b.updatedAt || b.createdAt);
-        return db - da;
-    });
-
-    list.innerHTML = sorted.map(deck => {
-        const cards = getCardsInDeck(deck.id);
-        const due = cards.filter(c => isDue(c) && !isBuried(c)).length;
-        return `
-            <div class="deck-row" data-deck="${deck.id}" style="--deck-color: ${deck.color}">
-                <div class="deck-row-info">
-                    <div class="deck-row-name">${escapeHtml(deck.name)}</div>
-                    <div class="deck-row-meta">
-                        ${due > 0 ? `<span class="due">${due} due</span>` : '<span>No cards due</span>'}
-                        <span>·</span>
-                        <span>${cards.length} ${cards.length === 1 ? 'card' : 'cards'}</span>
-                    </div>
-                </div>
-                <div class="deck-row-arrow">${ICON_CHEVRON}</div>
-            </div>
-        `;
-    }).join('');
-
-    list.querySelectorAll('.deck-row').forEach(row => {
-        row.addEventListener('click', () => {
-            currentDeckId = row.dataset.deck;
-            cardFilter = 'all';
-            showView('deck');
-        });
-    });
-}
-
-// ============================================================
-// RENDER — DECK VIEW
-// ============================================================
-function renderDeck() {
-    const deck = state.decks[currentDeckId];
-    if (!deck) { showView('home'); return; }
-
-    document.getElementById('deckTitle').textContent = deck.name;
-    const allCards = getCardsInDeck(currentDeckId);
-    const due = allCards.filter(c => isDue(c) && !isBuried(c)).length;
-    document.getElementById('deckMeta').textContent = `${allCards.length} ${allCards.length === 1 ? 'card' : 'cards'} · ${due} due`;
-
-    document.querySelectorAll('#cardFilters .filter-pill').forEach(p => {
-        p.classList.toggle('active', p.dataset.filter === cardFilter);
-    });
-
-    const filtered = getFilteredCards();
-    renderCardList(filtered);
-}
-
-function getFilteredCards() {
-    const all = getCardsInDeck(currentDeckId).sort((a, b) => {
-        const da = new Date(a.updatedAt || a.createdAt);
-        const db = new Date(b.updatedAt || b.createdAt);
-        return db - da;
-    });
-    if (cardFilter === 'due') return all.filter(c => isDue(c) && !isBuried(c));
-    if (cardFilter === 'leeches') return all.filter(isLeech);
-    if (cardFilter === 'buried') return all.filter(isBuried);
-    return all;
-}
-
-function renderCardList(cards) {
-    const list = document.getElementById('cardList');
-    if (cards.length === 0) {
-        const msg = cardFilter === 'all' ? 'No cards in this deck yet.' :
-                    cardFilter === 'due' ? 'No cards due.' :
-                    cardFilter === 'leeches' ? 'No leeches yet.' :
-                    'No buried cards.';
-        list.innerHTML = `<div class="empty-list">${msg}</div>`;
-        return;
-    }
-
-    list.innerHTML = cards.map(card => {
-        const badges = [];
-        if (card.type === 'reversed') badges.push('<span class="badge badge-reversed">Reversed</span>');
-        if (card.type === 'typing') badges.push('<span class="badge badge-typing">Typing</span>');
-        if (card.type === 'cloze') badges.push('<span class="badge badge-cloze">Cloze</span>');
-        if (isLeech(card)) badges.push('<span class="badge badge-leech">Leech</span>');
-        if (isBuried(card)) badges.push('<span class="badge badge-buried">Buried</span>');
-
-        const display = card.type === 'cloze'
-            ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]')
-            : card.front;
-        const tags = (card.tags || []).slice(0, 3);
-        const dateStr = isBuried(card) ? `Until ${formatDate(card.buriedUntil)}` : formatDate(card.dueDate);
-
-        return `
-            <div class="card-item" data-card="${card.id}">
-                <div class="card-item-top">
-                    <div class="card-item-text">${escapeHtml(display || 'Empty card')}</div>
-                    <div class="card-item-badges">${badges.join('')}</div>
-                </div>
-                <div class="card-item-bottom">
-                    <div class="card-item-tags">
-                        ${tags.map(t => `<span class="card-item-tag">#${escapeHtml(t)}</span>`).join('')}
-                    </div>
-                    <div class="card-item-date">${dateStr}</div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    list.querySelectorAll('.card-item').forEach(item => {
-        item.addEventListener('click', () => openCardEditor(item.dataset.card));
-    });
-}
-
-// ============================================================
-// CARD EDITOR
-// ============================================================
-function openCardEditor(cardId) {
-    let card = cardId ? state.cards[cardId] : null;
-    // If this is the reversed twin, edit the primary instead
-    if (card && card.type === 'reversed' && card.siblingId && state.cards[card.siblingId]) {
-        card = state.cards[card.siblingId];
-        cardId = card.id;
-    }
-    editingCardId = cardId || null;
-
-    const isEditing = !!card;
-    const type = card?.type || 'basic';
-    const front = card?.front || '';
-    const back = card?.back || '';
-    const clozeText = card?.clozeText || '';
-    const tags = (card?.tags || []).join(', ');
-    const hasSibling = !!(card && card.type === 'basic' && card.siblingId && state.cards[card.siblingId]);
-
-    const html = `
-        <h2>${isEditing ? 'Edit card' : 'New card'}</h2>
-        <p class="modal-sub">${isEditing ? 'Update this card.' : 'Add a card to this deck.'}</p>
-
-        <label>Type</label>
-        <select id="cardTypeSelect">
-            <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (front → back)</option>
-            <option value="typing" ${type === 'typing' ? 'selected' : ''}>Typing (type the answer)</option>
-            <option value="cloze" ${type === 'cloze' ? 'selected' : ''}>Cloze (fill in the blank)</option>
-        </select>
-
-        <div id="basicFields" ${type === 'cloze' ? 'style="display:none"' : ''}>
-            <label>Front</label>
-            <textarea id="cardFront" placeholder="Question or prompt">${escapeHtml(front)}</textarea>
-            <label>Back</label>
-            <textarea id="cardBack" placeholder="Answer">${escapeHtml(back)}</textarea>
-            <div class="checkbox-row">
-                <input type="checkbox" id="alsoReversed" ${hasSibling ? 'checked' : ''}>
-                <span>Also test reversed (back → front)</span>
-            </div>
-        </div>
-
-        <div id="clozeFields" ${type !== 'cloze' ? 'style="display:none"' : ''}>
-            <label>Cloze text</label>
-            <textarea id="cardClozeText" placeholder="The capital of France is {{c1::Paris}}.">${escapeHtml(clozeText)}</textarea>
-            <p class="field-hint">Wrap hidden parts in <code>{{c1::answer}}</code>. Multiple clozes allowed.</p>
-        </div>
-
-        <label>Tags (comma separated)</label>
-        <input type="text" id="cardTags" placeholder="work, personal, exam" value="${escapeHtml(tags)}">
-
-        <div class="btn-row">
-            ${isEditing ? '<button class="btn btn-outline" id="cardDeleteBtn">Delete</button>' : ''}
-            <button class="btn btn-outline" id="cardCancelBtn">Cancel</button>
-            <button class="btn btn-primary" id="cardSaveBtn">Save</button>
-        </div>
-    `;
-
-    openModal(html);
-
-    const typeSelect = document.getElementById('cardTypeSelect');
-    const basicFields = document.getElementById('basicFields');
-    const clozeFields = document.getElementById('clozeFields');
-
-    typeSelect.addEventListener('change', () => {
-        const t = typeSelect.value;
-        basicFields.style.display = t === 'cloze' ? 'none' : 'block';
-        clozeFields.style.display = t === 'cloze' ? 'block' : 'none';
-    });
-
-    document.getElementById('cardCancelBtn').addEventListener('click', closeModal);
-
-    if (isEditing) {
-        document.getElementById('cardDeleteBtn').addEventListener('click', () => {
-            closeModal();
-            deleteCardFlow(cardId);
-        });
-    }
-
-    document.getElementById('cardSaveBtn').addEventListener('click', () => {
-        saveCardEditor(card, typeSelect.value);
-    });
-}
-
-function saveCardEditor(existingCard, newType) {
-    const tagsRaw = document.getElementById('cardTags').value.trim();
-    const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t) : [];
-
-    if (newType === 'cloze') {
-        const clozeText = document.getElementById('cardClozeText').value.trim();
-        if (!clozeText) { showToast('Cloze text required'); return; }
-        if (!clozeHasMarkers(clozeText)) {
-            showToast('Add at least one {{c1::answer}} marker');
-            return;
-        }
-
-        if (existingCard) {
-            updateCard(existingCard.id, { type: 'cloze', clozeText, tags });
-        } else {
-            createCard(currentDeckId, { type: 'cloze', clozeText, tags });
-        }
-        closeModal();
-        renderDeck();
-        return;
-    }
-
-    const front = document.getElementById('cardFront').value.trim();
-    const back = document.getElementById('cardBack').value.trim();
-    if (!front || !back) { showToast('Front and back are required'); return; }
-
-    const alsoReversed = document.getElementById('alsoReversed').checked;
-
-    if (existingCard) {
-        // Update existing card
-        const updates = { type: newType, front, back, tags };
-
-        if (alsoReversed && !existingCard.siblingId) {
-            // Create sibling
-            const sibId = createCard(currentDeckId, {
-                type: 'reversed',
-                front: back,
-                back: front,
-                tags,
-                siblingId: existingCard.id
-            });
-            updates.siblingId = sibId;
-        } else if (!alsoReversed && existingCard.siblingId) {
-            // Remove sibling
-            const sib = state.cards[existingCard.siblingId];
-            if (sib) {
-                if (!state.deletedIds.cards.includes(sib.id)) state.deletedIds.cards.push(sib.id);
-                delete state.cards[sib.id];
-            }
-            updates.siblingId = null;
-        } else if (alsoReversed && existingCard.siblingId) {
-            // Sync sibling content
-            const sib = state.cards[existingCard.siblingId];
-            if (sib) {
-                updateCard(sib.id, { front: back, back: front, tags });
-            }
-        }
-
-        updateCard(existingCard.id, updates);
-    } else {
-        // Create new card
-        const primaryId = createCard(currentDeckId, { type: newType, front, back, tags });
-        if (alsoReversed) {
-            const sibId = createCard(currentDeckId, {
-                type: 'reversed',
-                front: back,
-                back: front,
-                tags,
-                siblingId: primaryId
-            });
-            updateCard(primaryId, { siblingId: sibId });
-        }
-    }
-
-    closeModal();
-    renderDeck();
-}
-
-function deleteCardFlow(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-
-    pendingDelete = { card, id: cardId, timer: null };
-    deleteCardWithSibling(cardId);
-
-    const toast = document.getElementById('undoToast');
-    document.getElementById('undoText').textContent = 'Card deleted';
-    toast.classList.add('show');
-
-    if (pendingDelete.timer) clearTimeout(pendingDelete.timer);
-    pendingDelete.timer = setTimeout(() => {
-        toast.classList.remove('show');
-        pendingDelete = null;
-    }, 5000);
-
-    renderDeck();
-}
-
-function undoDeleteCard() {
-    if (!pendingDelete) return;
-    document.getElementById('undoToast').classList.remove('show');
-    const { card, id } = pendingDelete;
-    state.cards[id] = card;
-    // Remove from tombstones
-    state.deletedIds.cards = state.deletedIds.cards.filter(x => x !== id);
-    // If it had a sibling, restore the link
-    if (card.siblingId && state.cards[card.siblingId]) {
-        state.cards[card.siblingId].siblingId = id;
-    }
-    saveState();
-    clearTimeout(pendingDelete.timer);
-    pendingDelete = null;
-    renderDeck();
-    showToast('Card restored');
-}
-
-// ============================================================
-// DECK EDITOR / CREATOR
-// ============================================================
-function openDeckEditor(deckId) {
-    editingDeckId = deckId || null;
-    const isEditing = !!deckId;
-    const deck = deckId ? state.decks[deckId] : null;
-
-    const name = deck?.name || '';
-    const color = deck?.color || DECK_COLORS[0];
-    const intervals = deck?.intervals || [0.0417, 1, 3, 7];
-
-    const colorsHtml = DECK_COLORS.map(c => `
-        <button class="color-option ${c === color ? 'selected' : ''}" data-color="${c}" style="background: ${c}"></button>
-    `).join('');
-
-    const html = `
-        <h2>${isEditing ? 'Edit deck' : 'New deck'}</h2>
-        <p class="modal-sub">${isEditing ? 'Update deck details and intervals.' : 'Create a new deck.'}</p>
-
-        <label>Deck name</label>
-        <input type="text" id="deckNameInput" placeholder="e.g. Anatomy, French, History" value="${escapeHtml(name)}">
-
-        <label>Color</label>
-        <div class="color-picker" id="colorPicker">${colorsHtml}</div>
-
-        <label>Intervals (days)</label>
-        <div class="intervals-grid">
-            <div>
-                <label style="margin-top:0">Again</label>
-                <input type="number" step="0.01" id="intAgain" value="${intervals[0]}" min="0.001">
-            </div>
-            <div>
-                <label style="margin-top:0">Hard</label>
-                <input type="number" step="0.01" id="intHard" value="${intervals[1]}" min="0.001">
-            </div>
-            <div>
-                <label style="margin-top:0">Good</label>
-                <input type="number" step="0.01" id="intGood" value="${intervals[2]}" min="0.001">
-            </div>
-            <div>
-                <label style="margin-top:0">Easy</label>
-                <input type="number" step="0.01" id="intEasy" value="${intervals[3]}" min="0.001">
-            </div>
-        </div>
-
-        <div class="btn-row">
-            <button class="btn btn-outline" id="deckCancelBtn">Cancel</button>
-            <button class="btn btn-primary" id="deckSaveBtn">${isEditing ? 'Save' : 'Create'}</button>
-        </div>
-    `;
-
-    openModal(html);
-
-    let selectedColor = color;
-    document.querySelectorAll('#colorPicker .color-option').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#colorPicker .color-option').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            selectedColor = btn.dataset.color;
-        });
-    });
-
-    document.getElementById('deckCancelBtn').addEventListener('click', closeModal);
-
-    document.getElementById('deckSaveBtn').addEventListener('click', () => {
-        const newName = document.getElementById('deckNameInput').value.trim();
-        if (!newName) { showToast('Deck name required'); return; }
-
-        const newIntervals = [
-            parseFloat(document.getElementById('intAgain').value) || 0.0417,
-            parseFloat(document.getElementById('intHard').value) || 1,
-            parseFloat(document.getElementById('intGood').value) || 3,
-            parseFloat(document.getElementById('intEasy').value) || 7
-        ];
-
-        if (isEditing) {
-            updateDeck(deckId, { name: newName, color: selectedColor, intervals: newIntervals });
-            closeModal();
-            renderDeck();
-        } else {
-            const newId = createDeck(newName, selectedColor);
-            updateDeck(newId, { intervals: newIntervals });
-            closeModal();
-            currentDeckId = newId;
-            showView('deck');
-        }
-    });
-}
-
-// ============================================================
-// STUDY SESSION
-// ============================================================
-function startStudy(deckId, mode = 'normal', tagFilter = null) {
-    currentDeckId = deckId;
-    const deck = state.decks[deckId];
-    if (!deck) return;
-
-    let cards;
-    if (mode === 'cram') {
-        cards = getCardsInDeck(deckId).filter(c => !isBuried(c));
-    } else if (mode === 'tag' && tagFilter) {
-        cards = getCardsInDeck(deckId).filter(c => !isBuried(c) && (c.tags || []).includes(tagFilter));
-    } else {
-        cards = getDueCards(deckId);
-    }
-
-    if (cards.length === 0) {
-        showToast(mode === 'cram' ? 'No cards in this deck' : mode === 'tag' ? 'No cards with this tag' : 'No cards due right now');
-        return;
-    }
-
-    // Shuffle
-    for (let i = cards.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [cards[i], cards[j]] = [cards[j], cards[i]];
-    }
-
-    studySession = {
-        deckId,
-        mode,
-        queue: cards.map(c => c.id),
-        index: 0,
-        revealed: false,
-        typedAnswer: '',
-        typedChecked: false,
-        typedCorrect: false,
-        results: { again: 0, hard: 0, good: 0, easy: 0 }
-    };
-
-    showView('study');
-}
-
-function renderStudy() {
-    if (!studySession) { showView('home'); return; }
-
-    const body = document.getElementById('studyBody');
-    const prog = document.getElementById('studyProgress');
-
-    if (studySession.index >= studySession.queue.length) {
-        prog.textContent = `${studySession.queue.length} / ${studySession.queue.length}`;
-        renderStudyComplete();
-        return;
-    }
-
-    prog.textContent = `${studySession.index + 1} / ${studySession.queue.length}`;
-
-    const card = state.cards[studySession.queue[studySession.index]];
-    if (!card) {
-        studySession.index++;
-        renderStudy();
-        return;
-    }
-
-    const deck = state.decks[card.deckId];
-    const intervals = deck?.intervals || [0.0417, 1, 3, 7];
-    const labels = ['Again', 'Hard', 'Good', 'Easy'];
-
-    let cardHtml = '';
-    let actionsHtml = '';
-
-    if (card.type === 'cloze') {
-        cardHtml = `
-            <div class="study-label">Cloze</div>
-            <div class="study-text">${studySession.revealed ? renderClozeRevealed(card.clozeText) : renderClozeHidden(card.clozeText)}</div>
-            ${renderStudyTags(card)}
-        `;
-        if (!studySession.revealed) {
-            actionsHtml = `<button class="btn-reveal" id="revealBtn">Reveal answer</button>`;
-        } else {
-            actionsHtml = renderRatingButtons(labels, intervals);
-        }
-    } else if (card.type === 'typing') {
-        cardHtml = `
-            <div class="study-label">Type the answer</div>
-            <div class="study-text">${escapeHtml(card.front)}</div>
-            <input type="text" class="study-typing-input" id="typingInput" placeholder="Type your answer..."
-                value="${escapeHtml(studySession.typedAnswer)}" autocomplete="off" ${studySession.typedChecked ? 'disabled' : ''}>
-            ${studySession.typedChecked ? `
-                <div class="study-feedback ${studySession.typedCorrect ? 'correct' : 'wrong'}">
-                    ${studySession.typedCorrect ? 'Correct!' : 'The answer is: ' + escapeHtml(card.back)}
-                </div>
-            ` : ''}
-            ${renderStudyTags(card)}
-        `;
-        if (!studySession.typedChecked) {
-            actionsHtml = `<button class="btn-reveal" id="checkBtn">Check answer</button>`;
-        } else {
-            actionsHtml = renderRatingButtons(labels, intervals);
-        }
-    } else {
-        // basic / reversed
-        cardHtml = `
-            <div class="study-label">${card.type === 'reversed' ? 'Reversed' : 'Basic'}</div>
-            <div class="study-text">${escapeHtml(card.front)}</div>
-            ${studySession.revealed ? `<div class="study-answer">${escapeHtml(card.back)}</div>` : ''}
-            ${renderStudyTags(card)}
-        `;
-        if (!studySession.revealed) {
-            actionsHtml = `<button class="btn-reveal" id="revealBtn">Reveal answer</button>`;
-        } else {
-            actionsHtml = renderRatingButtons(labels, intervals);
-        }
-    }
-
-    body.innerHTML = `
-        <div class="study-card">${cardHtml}</div>
-        <div class="study-actions">${actionsHtml}</div>
-    `;
-
-    bindStudyEvents(card);
-
-    // Focus typing input
-    if (card.type === 'typing' && !studySession.typedChecked) {
-        const input = document.getElementById('typingInput');
-        if (input) input.focus();
-    }
-}
-
-function renderStudyTags(card) {
-    const tags = (card.tags || []).filter(t => t);
-    if (tags.length === 0) return '';
-    return `<div class="study-tags">${tags.map(t => `<span class="study-tag">#${escapeHtml(t)}</span>`).join('')}</div>`;
-}
-
-function renderRatingButtons(labels, intervals) {
-    return `
-        <div class="rating-buttons">
-            ${labels.map((label, i) => `
-                <button class="rating-btn" data-rating="${i}">
-                    <span class="rating-btn-label">${label}</span>
-                    <span class="rating-btn-interval">${formatInterval(intervals[i])}</span>
-                </button>
-            `).join('')}
-        </div>
-    `;
-}
-
-function bindStudyEvents(card) {
-    const revealBtn = document.getElementById('revealBtn');
-    if (revealBtn) {
-        revealBtn.addEventListener('click', revealCurrent);
-    }
-
-    const checkBtn = document.getElementById('checkBtn');
-    if (checkBtn) {
-        checkBtn.addEventListener('click', checkTyping);
-    }
-
-    const typingInput = document.getElementById('typingInput');
-    if (typingInput) {
-        typingInput.addEventListener('input', () => {
-            studySession.typedAnswer = typingInput.value;
-        });
-        typingInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                checkTyping();
-            }
-        });
-    }
-
-    document.querySelectorAll('.rating-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            rateCard(parseInt(btn.dataset.rating));
-        });
-    });
-}
-
-function revealCurrent() {
-    studySession.revealed = true;
-    renderStudy();
-}
-
-function checkTyping() {
-    const card = state.cards[studySession.queue[studySession.index]];
-    if (!card) return;
-    const typed = (studySession.typedAnswer || '').trim();
-    if (!typed) { showToast('Type an answer first'); return; }
-
-    const normalize = s => s.toLowerCase().trim().replace(/[.,!?;:'"]/g, '').replace(/\s+/g, ' ');
-    const correct = normalize(typed) === normalize(card.back);
-
-    studySession.typedChecked = true;
-    studySession.typedCorrect = correct;
-    renderStudy();
-}
-
-function rateCard(rating) {
-    const card = state.cards[studySession.queue[studySession.index]];
-    if (!card) return;
-    const deck = state.decks[card.deckId];
-    const intervals = deck?.intervals || [0.0417, 1, 3, 7];
-    const days = intervals[rating] || 1;
-
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + days);
-
-    const updates = {
-        dueDate: dueDate.toISOString(),
-        step: rating,
-        history: [...(card.history || []), { ts: nowISO(), rating }]
-    };
-
-    if (rating === 0) {
-        updates.failCount = (card.failCount || 0) + 1;
-    } else {
-        updates.failCount = card.failCount || 0;
-    }
-
-    updateCard(card.id, updates);
-
-    // Update session result counts
-    const resultKey = ['again', 'hard', 'good', 'easy'][rating];
-    studySession.results[resultKey]++;
-
-    // Update streak
-    updateStreak();
-
-    studySession.revealed = false;
-    studySession.typedAnswer = '';
-    studySession.typedChecked = false;
-    studySession.typedCorrect = false;
-    studySession.index++;
-    renderStudy();
-}
-
-function updateStreak() {
-    const today = todayStart().toISOString().slice(0, 10);
-    const last = state.studyStreak.lastDate;
-
-    if (last === today) return;
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().slice(0, 10);
-
-    if (last === yesterdayStr) {
-        state.studyStreak.count++;
-    } else {
-        state.studyStreak.count = 1;
-    }
-    state.studyStreak.lastDate = today;
-    saveState();
-}
-
-function renderStudyComplete() {
-    const body = document.getElementById('studyBody');
-    const r = studySession.results;
-    const total = studySession.queue.length;
-
-    body.innerHTML = `
-        <div class="study-complete">
-            <h2>Session complete</h2>
-            <p>You reviewed ${total} ${total === 1 ? 'card' : 'cards'}.</p>
-            <div class="study-complete-stats">
-                <div class="study-complete-stat">
-                    <div class="study-complete-stat-num">${r.again}</div>
-                    <div class="study-complete-stat-label">Again</div>
-                </div>
-                <div class="study-complete-stat">
-                    <div class="study-complete-stat-num">${r.hard}</div>
-                    <div class="study-complete-stat-label">Hard</div>
-                </div>
-                <div class="study-complete-stat">
-                    <div class="study-complete-stat-num">${r.good}</div>
-                    <div class="study-complete-stat-label">Good</div>
-                </div>
-                <div class="study-complete-stat">
-                    <div class="study-complete-stat-num">${r.easy}</div>
-                    <div class="study-complete-stat-label">Easy</div>
-                </div>
-            </div>
-            <button class="btn btn-primary" id="finishStudyBtn">Back to deck</button>
-        </div>
-    `;
-
-    document.getElementById('finishStudyBtn').addEventListener('click', () => {
-        studySession = null;
-        showView('deck');
-    });
-}
-
-function exitStudy() {
-    studySession = null;
-    showView('deck');
-}
-
-// ============================================================
-// CARD OPTIONS (from deck view)
-// ============================================================
-function openCardOptions(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-    const decks = Object.values(state.decks).filter(d => d.id !== card.deckId);
-
-    const html = `
-        <h2>Card options</h2>
-        <p class="modal-sub">${escapeHtml(card.front || card.clozeText || 'Card')}</p>
-        <div class="btn-row" style="flex-direction:column;gap:8px;">
-            <button class="btn btn-outline" id="optHistory">View history</button>
-            <button class="btn btn-outline" id="optBury">${isBuried(card) ? 'Unbury' : 'Bury until tomorrow'}</button>
-            <button class="btn btn-outline" id="optDuplicate">Duplicate</button>
-            ${decks.length > 0 ? '<button class="btn btn-outline" id="optMove">Move to another deck</button>' : ''}
-            <button class="btn btn-outline" id="optCancel">Cancel</button>
-        </div>
-    `;
-    openModal(html);
-
-    document.getElementById('optHistory').addEventListener('click', () => {
-        closeModal();
-        openCardHistory(cardId);
-    });
-    document.getElementById('optBury').addEventListener('click', () => {
-        closeModal();
-        buryCard(cardId);
-    });
-    document.getElementById('optDuplicate').addEventListener('click', () => {
-        closeModal();
-        duplicateCard(cardId);
-    });
-    if (decks.length > 0) {
-        document.getElementById('optMove').addEventListener('click', () => {
-            closeModal();
-            openMoveCard(cardId);
-        });
-    }
-    document.getElementById('optCancel').addEventListener('click', closeModal);
-}
-
-function buryCard(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-    if (isBuried(card)) {
-        updateCard(cardId, { buried: false, buriedUntil: null });
-        showToast('Card unbured');
-    } else {
-        updateCard(cardId, { buried: true, buriedUntil: tomorrowStart().toISOString() });
-        showToast('Buried until tomorrow');
-    }
-    renderDeck();
-}
-
-function duplicateCard(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-    const newData = {
-        type: card.type,
-        front: card.front,
-        back: card.back,
-        clozeText: card.clozeText,
-        tags: [...(card.tags || [])]
-    };
-    createCard(card.deckId, newData);
-    renderDeck();
-    showToast('Card duplicated');
-}
-
-function openMoveCard(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-    const decks = Object.values(state.decks).filter(d => d.id !== card.deckId);
-    const html = `
-        <h2>Move card</h2>
-        <p class="modal-sub">Choose a destination deck.</p>
-        ${decks.map(d => `<button class="btn btn-outline" style="width:100%;margin-bottom:6px;" data-move-to="${d.id}">${escapeHtml(d.name)}</button>`).join('')}
-        <button class="btn btn-outline" id="moveCancelBtn" style="width:100%;margin-top:8px;">Cancel</button>
-    `;
-    openModal(html);
-    document.querySelectorAll('[data-move-to]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.dataset.moveTo;
-            updateCard(cardId, { deckId: targetId });
-            if (card.siblingId && state.cards[card.siblingId]) {
-                updateCard(card.siblingId, { deckId: targetId });
-            }
-            closeModal();
-            renderDeck();
-            showToast('Card moved');
-        });
-    });
-    document.getElementById('moveCancelBtn').addEventListener('click', closeModal);
-}
-
-function openCardHistory(cardId) {
-    const card = state.cards[cardId];
-    if (!card) return;
-    const history = (card.history || []).slice().reverse();
-    const labels = ['Again', 'Hard', 'Good', 'Easy'];
-    const html = `
-        <h2>Card history</h2>
-        <p class="modal-sub">${escapeHtml(card.front || card.clozeText || 'Card')}</p>
-        ${history.length === 0 ? '<div class="empty-list">No history yet.</div>' : history.map(h => `
-            <div class="list-item">
-                <div class="list-item-title">${labels[h.rating] || '—'}</div>
-                <div class="list-item-meta">${new Date(h.ts).toLocaleString()}</div>
-            </div>
-        `).join('')}
-        <button class="btn btn-outline" id="historyCloseBtn" style="width:100%;margin-top:16px;">Close</button>
-    `;
-    openModal(html);
-    document.getElementById('historyCloseBtn').addEventListener('click', closeModal);
-}
-
-// ============================================================
-// STATS MODAL
-// ============================================================
-function openStats() {
-    const allCards = Object.values(state.cards);
-    const total = allCards.length;
-    const due = allCards.filter(c => isDue(c) && !isBuried(c)).length;
-    const leeches = allCards.filter(isLeech).length;
-
-    let totalReviews = 0;
-    let correctReviews = 0;
-    allCards.forEach(c => {
-        (c.history || []).forEach(h => {
-            totalReviews++;
-            if (h.rating >= 2) correctReviews++;
-        });
-    });
-    const retention = totalReviews > 0 ? Math.round((correctReviews / totalReviews) * 100) : null;
-
-    const learned = allCards.filter(c => (c.step || 0) >= 2).length;
-
-    const html = `
-        <h2>Stats</h2>
-        <p class="modal-sub">Your study activity at a glance.</p>
-        <div class="stats-grid">
-            <div class="stats-tile">
-                <div class="stats-tile-num">${total}</div>
-                <div class="stats-tile-label">Total cards</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${due}</div>
-                <div class="stats-tile-label">Due today</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${retention === null ? '—' : retention + '%'}</div>
-                <div class="stats-tile-label">Retention</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${totalReviews}</div>
-                <div class="stats-tile-label">Reviews</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${learned}</div>
-                <div class="stats-tile-label">Learned</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${leeches}</div>
-                <div class="stats-tile-label">Leeches</div>
-            </div>
-            <div class="stats-tile">
-                <div class="stats-tile-num">${state.studyStreak.count || 0}</div>
-                <div class="stats-tile-label">Streak (days)</div>
-            </div>
-        </div>
-        <button class="btn btn-outline" id="statsCloseBtn" style="width:100%;margin-top:16px;">Close</button>
-    `;
-    openModal(html);
-    document.getElementById('statsCloseBtn').addEventListener('click', closeModal);
-}
-
-// ============================================================
-// HARDEST CARDS MODAL
-// ============================================================
-function openHardest() {
-    const cards = Object.values(state.cards)
-        .filter(c => (c.failCount || 0) > 0)
-        .sort((a, b) => (b.failCount || 0) - (a.failCount || 0))
-        .slice(0, 20);
-
-    const html = `
-        <h2>Hardest cards</h2>
-        <p class="modal-sub">Cards you struggle with most.</p>
-        ${cards.length === 0 ? '<div class="empty-list">No failures yet.</div>' : cards.map(c => {
-            const deck = state.decks[c.deckId];
-            return `
-                <div class="list-item" data-card="${c.id}">
-                    <div class="list-item-title">${escapeHtml(c.front || c.clozeText || 'Card')}</div>
-                    <div class="list-item-meta">${c.failCount} fail${c.failCount === 1 ? '' : 's'} · ${escapeHtml(deck?.name || 'Unknown deck')}</div>
-                </div>
-            `;
-        }).join('')}
-        <button class="btn btn-outline" id="hardestCloseBtn" style="width:100%;margin-top:16px;">Close</button>
-    `;
-    openModal(html);
-    document.getElementById('hardestCloseBtn').addEventListener('click', closeModal);
-}
-
-// ============================================================
-// STUDY BY TAG MODAL
-// ============================================================
-function openStudyByTag() {
-    const cards = getCardsInDeck(currentDeckId);
-    const tagSet = new Set();
-    cards.forEach(c => (c.tags || []).forEach(t => tagSet.add(t)));
-    const tags = Array.from(tagSet).sort();
-
-    const html = `
-        <h2>Study by tag</h2>
-        <p class="modal-sub">Pick a tag to study only those cards.</p>
-        ${tags.length === 0 ? '<div class="empty-list">No tags in this deck yet.</div>' : tags.map(t => `
-            <button class="btn btn-outline" style="width:100%;margin-bottom:6px;" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>
-        `).join('')}
-        <button class="btn btn-outline" id="tagCancelBtn" style="width:100%;margin-top:8px;">Cancel</button>
-    `;
-    openModal(html);
-    document.querySelectorAll('[data-tag]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tag = btn.dataset.tag;
-            closeModal();
-            startStudy(currentDeckId, 'tag', tag);
-        });
-    });
-    document.getElementById('tagCancelBtn').addEventListener('click', closeModal);
-}
-
-// ============================================================
-// SETTINGS
-// ============================================================
-function renderSettings() {
-    const driveClient = localStorage.getItem(DRIVE_CLIENT_KEY) || '';
-    const driveToken = localStorage.getItem(DRIVE_TOKEN_KEY) || '';
-    document.getElementById('driveClientId').value = driveClient;
-    updateDriveButtons(!!driveToken);
-    loadVersion();
-}
-
-function updateDriveButtons(connected) {
-    document.getElementById('drivePushBtn').disabled = !connected;
-    document.getElementById('drivePullBtn').disabled = !connected;
-    document.getElementById('connectDriveBtn').textContent = connected ? 'Reconnect' : 'Connect';
-}
-
-async function loadVersion() {
-    try {
-        const res = await fetch('sw.js', { cache: 'no-store' });
-        const text = await res.text();
-        const m = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
-        if (m) document.getElementById('appVersion').textContent = m[1];
-    } catch (e) {}
-}
-
-// ============================================================
-// GOOGLE DRIVE
-// ============================================================
-function connectDrive() {
-    const clientId = document.getElementById('driveClientId').value.trim();
-    if (!clientId) { showToast('Enter client ID first'); return; }
-    localStorage.setItem(DRIVE_CLIENT_KEY, clientId);
-
-    if (typeof google === 'undefined') {
-        const s = document.createElement('script');
-        s.src = 'https://accounts.google.com/gsi/client';
-        s.onload = initDriveAuth;
-        s.onerror = () => showToast('Failed to load Google');
-        document.head.appendChild(s);
-    } else initDriveAuth();
-}
-
-function initDriveAuth() {
-    const clientId = localStorage.getItem(DRIVE_CLIENT_KEY);
-    try {
-        const tc = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/drive.file',
-            callback: (resp) => {
-                if (resp.access_token) {
-                    localStorage.setItem(DRIVE_TOKEN_KEY, resp.access_token);
-                    document.getElementById('driveStatus').textContent = 'Connected';
-                    updateDriveButtons(true);
-                    showToast('Drive connected');
-                }
-            },
-        });
-        tc.requestAccessToken();
-    } catch (e) {
-        showToast('Drive init failed');
-    }
-}
-
-async function drivePush() {
-    const token = localStorage.getItem(DRIVE_TOKEN_KEY);
-    if (!token) return;
-    document.getElementById('driveStatus').textContent = 'Backing up...';
-    try {
-        const folderId = await getOrCreateDriveFolder(token);
-        const backup = { state, exportedAt: nowISO() };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify({ name: 'cjaycards_backup.json', parents: [folderId] })], { type: 'application/json' }));
-        form.append('file', new Blob([JSON.stringify(backup)], { type: 'application/json' }));
-        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token },
-            body: form
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        document.getElementById('driveStatus').textContent = 'Backed up successfully';
-        showToast('Backed up to Drive');
-    } catch (e) {
-        document.getElementById('driveStatus').textContent = 'Backup failed';
-        showToast('Backup failed');
-    }
-}
-
-async function drivePull() {
-    const token = localStorage.getItem(DRIVE_TOKEN_KEY);
-    if (!token) return;
-    document.getElementById('driveStatus').textContent = 'Restoring...';
-    try {
-        const folderId = await getOrCreateDriveFolder(token);
-        const search = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='cjaycards_backup.json' and '${folderId}' in parents and trashed=false`,
-            { headers: { 'Authorization': 'Bearer ' + token } }
-        );
-        const sdata = await search.json();
-        if (!sdata.files || sdata.files.length === 0) {
-            document.getElementById('driveStatus').textContent = 'No backup found';
-            return;
-        }
-        const fileId = sdata.files[0].id;
-        const dres = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const backup = await dres.json();
-        if (!backup.state) throw new Error('Invalid backup');
-        if (!confirm('Replace all local data with this backup?')) return;
-        state = backup.state;
-        if (!state.deletedIds) state.deletedIds = { decks: [], cards: [] };
-        if (!state.studyStreak) state.studyStreak = { lastDate: null, count: 0 };
-        saveState();
-        renderHome();
-        document.getElementById('driveStatus').textContent = 'Restored from Drive';
-        showToast('Restored from Drive');
-    } catch (e) {
-        document.getElementById('driveStatus').textContent = 'Restore failed';
-        showToast('Restore failed');
-    }
-}
-
-async function getOrCreateDriveFolder(token) {
-    const s = await fetch(
-        "https://www.googleapis.com/drive/v3/files?q=name='CjayCards' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-        { headers: { 'Authorization': 'Bearer ' + token } }
-    );
-    const sd = await s.json();
-    if (sd.files && sd.files.length > 0) return sd.files[0].id;
-    const c = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'CjayCards', mimeType: 'application/vnd.google-apps.folder' })
-    });
-    const cd = await c.json();
-    return cd.id;
-}
-
-// ============================================================
-// JSON BACKUP
-// ============================================================
-function exportJson() {
-    const backup = { state, exportedAt: nowISO() };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cjaycards_backup_${nowISO().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Exported');
-}
-
-function importJson() {
-    document.getElementById('backupInput').click();
-}
-
-// ============================================================
-// RESET
-// ============================================================
-function resetAll() {
-    if (!confirm('Delete all decks and cards? This cannot be undone.')) return;
-    state = getDefaultState();
-    saveState();
-    renderHome();
-    showToast('All data cleared');
-}
-
-// ============================================================
-// WIRE FORMAT (Phase 2 prep — not called yet)
-// ============================================================
-function toWireFormat() {
-    return {
-        collections: {
-            decks: Object.values(state.decks),
-            cards: Object.values(state.cards)
-        },
-        deletedIds: {
-            decks: state.deletedIds.decks,
-            cards: state.deletedIds.cards
-        },
-        settings: { theme: getStoredTheme() }
-    };
-}
-
-function fromWireFormat(wire) {
-    const decks = {};
-    const cards = {};
-    (wire.collections?.decks || []).forEach(d => { decks[d.id] = d; });
-    (wire.collections?.cards || []).forEach(c => { cards[c.id] = c; });
-    return {
-        decks,
-        cards,
-        deletedIds: {
-            decks: wire.deletedIds?.decks || [],
-            cards: wire.deletedIds?.cards || []
-        }
-    };
-}
-
-// ============================================================
-// KEYBOARD SHORTCUTS
-// ============================================================
-function handleKeyboard(e) {
-    // Don't fire in inputs
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
-        if (e.key === 'Escape') { e.target.blur(); }
-        return;
-    }
+  }
+
+  function persistTheme(family, mode) {
+    if (state.readOnly) return;
+    localStorage.setItem(LS.family, family);
+    localStorage.setItem(LS.mode, mode);
+    Storage.updateSettings({ family, mode });
+    state.data = Storage.getData();
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Menu                                                        */
+  /* ---------------------------------------------------------- */
+  const menuBtn = $('#menuBtn');
+  const menuDropdown = $('#menuDropdown');
+  const menuBackdrop = $('#menuBackdrop');
+
+  function openMenu() {
+    menuDropdown.hidden = false;
+    menuBackdrop.hidden = false;
+    menuBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeMenu() {
+    menuDropdown.hidden = true;
+    menuBackdrop.hidden = true;
+    menuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menuDropdown.hidden ? openMenu() : closeMenu();
+  });
+  menuBackdrop.addEventListener('click', closeMenu);
+
+  document.addEventListener('keydown', (e) => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
     if (e.key === 'Escape') {
-        closeAllPopups();
-        if (document.getElementById('modalOverlay').classList.contains('active')) {
-            closeModal();
-        } else if (currentView === 'study') {
-            exitStudy();
-        } else if (currentView === 'deck') {
-            showView('home');
-        }
-        return;
+      closeMenu();
+      closeFab();
+      if (!$('#viewRoot').hidden) { closeView(); return; }
+      closeModal();
     }
 
-    if (currentView === 'study' && studySession) {
-        if (e.code === 'Space') {
-            e.preventDefault();
-            if (!studySession.revealed && !studySession.typedChecked) {
-                const card = state.cards[studySession.queue[studySession.index]];
-                if (card && card.type === 'typing') checkTyping();
-                else revealCurrent();
-            }
-            return;
+    // Keyboard Shortcuts during study
+    if (state.study) {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const revealBtn = document.querySelector('#revealBtn');
+        const studyCard = document.querySelector('#studyCard');
+        if (revealBtn && !revealBtn.hidden) revealBtn.click();
+        else if (studyCard) studyCard.click();
+      }
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        const grid = document.querySelector('#ratingGrid');
+        if (grid && !grid.hidden) {
+          const btn = grid.querySelector(`[data-rating="${Number(e.key)-1}"]`);
+          if (btn) btn.click();
         }
-        if (['1', '2', '3', '4'].includes(e.key)) {
-            const card = state.cards[studySession.queue[studySession.index]];
-            if (!card) return;
-            if (studySession.revealed || studySession.typedChecked) {
-                rateCard(parseInt(e.key) - 1);
-            }
-        }
-        return;
+      }
     }
 
-    if (currentView === 'deck' && e.key.toLowerCase() === 'n') {
-        openCardEditor(null);
+    // Keyboard Shortcuts during deck view
+    if (e.key.toLowerCase() === 'n' && !$('#viewRoot').hidden && state.currentDeckId && !state.readOnly) {
+      openCardForm({});
     }
-}
+  });
 
-// ============================================================
-// EVENT BINDING
-// ============================================================
-function bindEvents() {
-    // Brand → home
-    document.getElementById('brandBtn').addEventListener('click', () => {
-        currentDeckId = null;
-        showView('home');
+  $$('.menu-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const action = item.dataset.action;
+      closeMenu();
+      handleMenuAction(action);
+    });
+  });
+
+  function handleMenuAction(action) {
+    switch (action) {
+      case 'search':    openView('search'); break;
+      case 'tags':      openView('tags'); break;
+      case 'activity':  openView('activity'); break;
+      case 'settings':  openView('settings'); break;
+      case 'tools':     openToolsSheet(); break;
+      case 'backup':    backupToFile(); break;
+      case 'restore':   restoreFromFile(); break;
+      case 'import-csv': importCSVFromFile(); break;
+      case 'export-csv': exportCSV(); break;
+      case 'print':     openView('activity'); break;
+      case 'clear-data': confirmResetAll(); break;
+    }
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Toast                                                       */
+  /* ---------------------------------------------------------- */
+  const toastStack = $('#toastStack');
+  const MAX_TOASTS = 3;
+
+  function toast(message, opts = {}) {
+    const { icon = 'fa-circle-info', type = 'info', duration = 5000, action = null, persist = false } = opts;
+    const existing = $$('.toast', toastStack);
+    if (existing.length >= MAX_TOASTS) dismissToast(existing[0]);
+
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `
+      <i class="fa-solid ${icon} toast-icon"></i>
+      <span class="toast-msg"></span>
+      ${action ? '<button class="toast-action"></button>' : ''}
+      <button class="toast-close" aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    el.querySelector('.toast-msg').textContent = message;
+
+    if (action) {
+      const btn = el.querySelector('.toast-action');
+      btn.textContent = action.label;
+      btn.addEventListener('click', () => {
+        action.onClick?.();
+        dismissToast(el);
+      });
+    }
+
+    el.querySelector('.toast-close').addEventListener('click', () => dismissToast(el));
+    toastStack.appendChild(el);
+
+    if (!persist && duration > 0) el._timer = setTimeout(() => dismissToast(el), duration);
+    return el;
+  }
+
+  function dismissToast(el) {
+    if (!el || el._dismissed) return;
+    el._dismissed = true;
+    clearTimeout(el._timer);
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 240);
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Modal                                                       */
+  /* ---------------------------------------------------------- */
+  const modalRoot = $('#modalRoot');
+  const modalSlot = $('#modalSlot');
+  const modalBackdrop = $('#modalBackdrop');
+
+  function openModal(contentEl) {
+    modalSlot.innerHTML = '';
+    modalSlot.appendChild(contentEl);
+    modalRoot.hidden = false;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('modal-open');
+  }
+  function closeModal() {
+    if (modalRoot.hidden) return;
+    modalRoot.hidden = true;
+    modalSlot.innerHTML = '';
+    document.body.style.overflow = '';
+    document.body.classList.remove('modal-open');
+  }
+  modalBackdrop.addEventListener('click', closeModal);
+
+  /* ---------------------------------------------------------- */
+  /* Utilities                                                   */
+  /* ---------------------------------------------------------- */
+  function escapeHTML(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function relativeTime(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) return `${weeks}w ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function intervalDisplay(days) {
+    if (days < 1) {
+      const h = Math.round(days * 24);
+      return `${h}h`;
+    }
+    if (days < 30) return `${Math.round(days)}d`;
+    return `${Math.round(days / 30)}mo`;
+  }
+
+  function dueLabel(card) {
+    if (Storage.isMastered(card)) return 'Mastered';
+    if (Storage.isBuried(card)) return 'Buried';
+    if (Storage.isDue(card)) return 'Due';
+    const diff = new Date(card.dueDate).getTime() - Date.now();
+    const days = Math.ceil(diff / 86400000);
+    if (days <= 1) return 'Due tomorrow';
+    return `in ${days}d`;
+  }
+
+  function dueLabelClass(card) {
+    if (Storage.isMastered(card)) return 'mastered';
+    if (Storage.isBuried(card)) return 'future';
+    if (Storage.isDue(card)) return 'due';
+    return 'future';
+  }
+
+  /* ---------------------------------------------------------- */
+  /* View system                                                 */
+  /* ---------------------------------------------------------- */
+  const viewRoot = $('#viewRoot');
+
+  function openView(name, payload = {}) {
+    viewRoot.innerHTML = '';
+    viewRoot.hidden = false;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('view-open');
+
+    const el = document.createElement('div');
+    el.className = 'view';
+    viewRoot.appendChild(el);
+
+    if (name === 'deck')       renderDeckDetail(el, payload.deckId);
+    else if (name === 'study') renderStudyView(el, payload);
+    else if (name === 'activity') renderActivityView(el);
+    else if (name === 'search')   renderSearchView(el);
+    else if (name === 'tags')     renderTagsView(el);
+    else if (name === 'settings') renderSettingsView(el);
+  }
+
+  function closeView() {
+    viewRoot.hidden = true;
+    viewRoot.innerHTML = '';
+    document.body.style.overflow = '';
+    document.body.classList.remove('view-open');
+    state.currentDeckId = null;
+    state.study = null;
+    refresh();
+  }
+
+  function viewHeaderHTML(title, rightHTML = '', opts = {}) {
+    const backIcon = opts.close ? 'fa-xmark' : 'fa-arrow-left';
+    return `
+      <div class="view-header">
+        <button class="view-back" data-act="back" aria-label="Back">
+          <i class="fa-solid ${backIcon}"></i>
+        </button>
+        <h2 class="view-title">${escapeHTML(title)}</h2>
+        <div class="view-actions">${rightHTML}</div>
+      </div>`;
+  }
+
+  /* ---------------------------------------------------------- */
+  /* FAB                                                         */
+  /* ---------------------------------------------------------- */
+  const fabBtn = $('#fabBtn');
+  const fabMenu = $('#fabMenu');
+
+  function toggleFab() {
+    const willOpen = fabMenu.hidden;
+    fabMenu.hidden = !willOpen;
+    fabBtn.classList.toggle('open', willOpen);
+    fabBtn.setAttribute('aria-expanded', String(willOpen));
+  }
+  function closeFab() {
+    fabMenu.hidden = true;
+    fabBtn.classList.remove('open');
+    fabBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  fabBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFab();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!fabMenu.hidden && !e.target.closest('.fab-wrap')) closeFab();
+  });
+
+  $$('.fab-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const action = item.dataset.action;
+      closeFab();
+      if (state.readOnly) return;
+      if (action === 'add-card') openCardForm({});
+      else if (action === 'new-deck') openDeckForm({});
+    });
+  });
+
+  /* ---------------------------------------------------------- */
+  /* Tabs                                                        */
+  /* ---------------------------------------------------------- */
+  $$('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const t = tab.dataset.tab;
+      state.tab = t;
+      $$('.tab').forEach((el) => {
+        const active = el.dataset.tab === t;
+        el.classList.toggle('active', active);
+        el.setAttribute('aria-selected', String(active));
+      });
+      $$('.screen').forEach((el) => el.classList.toggle('active', el.id === `screen-${t}`));
+      renderTab();
+    });
+  });
+
+  function renderTab() {
+    if (state.tab === 'decks') renderDecks();
+    else if (state.tab === 'due') renderDue();
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Home refresh                                                */
+  /* ---------------------------------------------------------- */
+  function refresh() {
+    state.data = state.readOnly ? state.data : Storage.getData();
+    renderDueChip();
+    renderTab();
+  }
+
+  function renderDueChip() {
+    const chip = $('#dueChip');
+    const count = Storage.totalDueCount(state.data);
+    $('#dueChipCount').textContent = count;
+    chip.classList.toggle('zero', count === 0);
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Decks tab                                                   */
+  /* ---------------------------------------------------------- */
+  function renderDecks() {
+    const screen = $('#screen-decks');
+    const decks = state.data.decks;
+
+    if (!decks.length) {
+      screen.innerHTML = emptyStateHTML('decks');
+      return;
+    }
+
+    screen.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'deck-list';
+
+    decks.forEach((deck) => list.appendChild(renderDeckCard(deck)));
+    screen.appendChild(list);
+  }
+
+  function renderDeckCard(deck) {
+    const cards = state.data.cards.filter((c) => c.deckId === deck.id);
+    const due = cards.filter(Storage.isDue).length;
+    const mastered = cards.filter(Storage.isMastered).length;
+    const masteryPct = cards.length ? Math.round((mastered / cards.length) * 100) : 0;
+
+    const card = document.createElement('div');
+    card.className = 'deck-card';
+    card.dataset.deckId = deck.id;
+
+    card.innerHTML = `
+      <div class="deck-top">
+        <span class="deck-dot" style="background:${deck.color}"></span>
+        <span class="deck-name">${escapeHTML(deck.name)}</span>
+        <button class="deck-menu-btn" aria-label="Deck actions"><i class="fa-solid fa-ellipsis"></i></button>
+      </div>
+      <div class="deck-meta">
+        <span class="${due ? 'due-count' : 'due-count zero'}">${due} due</span>
+        <span>·</span>
+        <span>${cards.length} card${cards.length === 1 ? '' : 's'}</span>
+        ${mastered ? `<span>·</span><span>${mastered} mastered</span>` : ''}
+      </div>
+      <div class="deck-bar"><div class="fill" style="width:${masteryPct}%; background:${deck.color}"></div></div>
+      <div class="deck-actions">
+        <button class="btn btn-primary" data-act="study">Study</button>
+        <button class="btn btn-ghost" data-act="open">Open</button>
+      </div>
+    `;
+
+    card.querySelector('[data-act="study"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.readOnly) return;
+      startStudy({ deckId: deck.id });
     });
 
-    // Theme
-    document.getElementById('themeBtn').addEventListener('click', toggleTheme);
-
-    // Main menu
-    const menuBtn = document.getElementById('menuBtn');
-    const popupMenu = document.getElementById('popupMenu');
-    menuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = popupMenu.classList.contains('open');
-        closeAllPopups();
-        if (!isOpen) popupMenu.classList.add('open');
+    card.querySelector('[data-act="open"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openView('deck', { deckId: deck.id });
     });
-    document.addEventListener('click', (e) => {
-        if (!popupMenu.contains(e.target) && !menuBtn.contains(e.target)) {
-            popupMenu.classList.remove('open');
+
+    card.querySelector('.deck-menu-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDeckMenu(deck, e.currentTarget);
+    });
+
+    card.addEventListener('click', () => openView('deck', { deckId: deck.id }));
+
+    return card;
+  }
+
+  function openDeckMenu(deck, anchor) {
+    const menu = document.createElement('div');
+    menu.className = 'popover';
+    menu.innerHTML = `
+      <button data-act="open"><i class="fa-solid fa-folder-open"></i>Open deck</button>
+      <button data-act="study"><i class="fa-solid fa-play"></i>Study now</button>
+      <button data-act="cram"><i class="fa-solid fa-bolt"></i>Cram mode</button>
+      <button data-act="tag"><i class="fa-solid fa-tag"></i>Study by tag…</button>
+      <button data-act="edit"><i class="fa-solid fa-pen"></i>Edit deck</button>
+      <button data-act="intervals"><i class="fa-solid fa-sliders"></i>Intervals</button>
+      <button data-act="reset" class="danger"><i class="fa-solid fa-rotate-left"></i>Reset progress</button>
+      <button data-act="delete" class="danger"><i class="fa-solid fa-trash-can"></i>Delete deck</button>
+    `;
+    const rect = anchor.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 6}px`;
+    menu.style.left = `${Math.max(12, rect.right - 200)}px`;
+    menu.style.zIndex = 65;
+    document.body.appendChild(menu);
+
+    const close = () => menu.remove();
+    setTimeout(() => document.addEventListener('click', function h(e) {
+      if (!menu.contains(e.target)) { close(); document.removeEventListener('click', h); }
+    }), 0);
+
+    menu.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        const act = b.dataset.act;
+        if (act === 'open') openView('deck', { deckId: deck.id });
+        else if (act === 'study') startStudy({ deckId: deck.id });
+        else if (act === 'cram') startStudy({ deckId: deck.id, mode: 'cram' });
+        else if (act === 'tag') openStudyByTagSheet(deck.id);
+        else if (act === 'edit') openDeckForm({ deckId: deck.id });
+        else if (act === 'intervals') openIntervalsSheet(deck.id);
+        else if (act === 'reset') confirmResetDeck(deck);
+        else if (act === 'delete') confirmDeleteDeck(deck);
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Due tab                                                     */
+  /* ---------------------------------------------------------- */
+  function renderDue() {
+    const screen = $('#screen-due');
+    const due = Storage.dueCardsOf(state.data);
+
+    if (!due.length) {
+      screen.innerHTML = emptyStateHTML('due');
+      return;
+    }
+
+    const deckCount = new Set(due.map((c) => c.deckId)).size;
+
+    screen.innerHTML = `
+      <div class="section-title">${due.length} card${due.length === 1 ? '' : 's'} due · across ${deckCount} deck${deckCount === 1 ? '' : 's'}</div>
+      <div style="padding: 0 0 16px;">
+        <button class="btn btn-primary btn-block" id="studyAllBtn">
+          <i class="fa-solid fa-play"></i> Study all due
+        </button>
+      </div>
+      <div class="deck-list" id="dueList"></div>
+    `;
+
+    const list = screen.querySelector('#dueList');
+    due.forEach((card) => list.appendChild(renderDueRow(card)));
+
+    screen.querySelector('#studyAllBtn').addEventListener('click', () => {
+      if (state.readOnly) return;
+      startStudy({ deckId: null });
+    });
+  }
+
+  function renderDueRow(card) {
+    const deck = Storage.getDeck(card.deckId);
+    const row = document.createElement('button');
+    row.className = 'card-row';
+    row.innerHTML = `
+      <div class="card-row-body">
+        <div class="card-row-front">${escapeHTML(card.front || card.clozeText || 'Card')}</div>
+        <div class="card-row-meta">
+          <span class="tag" style="background: color-mix(in srgb, ${deck?.color || 'var(--accent)'} 18%, transparent); color: ${deck?.color || 'var(--accent)'};">${escapeHTML(deck?.name || 'Unknown')}</span>
+        </div>
+      </div>
+      <span class="card-row-status due">Due</span>
+    `;
+    row.addEventListener('click', () => {
+      if (state.readOnly) return;
+      openView('deck', { deckId: card.deckId });
+    });
+    return row;
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Empty states                                                */
+  /* ---------------------------------------------------------- */
+  function emptyStateHTML(kind) {
+    if (kind === 'decks') {
+      return `
+        <div class="empty">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="22" y="30" width="70" height="56" rx="8" stroke="currentColor" stroke-width="3"/>
+            <rect x="34" y="42" width="58" height="56" rx="8" stroke="currentColor" stroke-width="3" fill="var(--bg)"/>
+            <path d="M46 62h34M46 74h22" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <div class="empty-title">No decks yet</div>
+          <div class="empty-sub">Tap <strong>+</strong> to create your first deck and start adding cards.</div>
+        </div>`;
+    }
+    if (kind === 'due') {
+      return `
+        <div class="empty">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="60" cy="60" r="38" stroke="currentColor" stroke-width="3"/>
+            <path d="M42 60l12 12 24-24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div class="empty-title">All caught up</div>
+          <div class="empty-sub">Nothing due right now. Come back later or study a specific deck.</div>
+        </div>`;
+    }
+    if (kind === 'deck-cards') {
+      return `
+        <div class="empty">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="22" y="30" width="70" height="56" rx="8" stroke="currentColor" stroke-width="3"/>
+            <path d="M46 62h34M46 74h22" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <div class="empty-title">No cards yet</div>
+          <div class="empty-sub">Tap <strong>+</strong> to add your first card to this deck.</div>
+        </div>`;
+    }
+    return '';
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Deck detail view                                            */
+  /* ---------------------------------------------------------- */
+  function renderDeckDetail(root, deckId) {
+    const deck = Storage.getDeck(deckId);
+    if (!deck) { closeView(); return; }
+    state.currentDeckId = deckId;
+
+    const cards = Storage.cardsOf(deckId);
+    const due = cards.filter(Storage.isDue).length;
+    const mastered = cards.filter(Storage.isMastered).length;
+
+    const menuHTML = `
+      <button class="icon-btn" data-act="deck-intervals" aria-label="Deck intervals" title="Intervals">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
+      <button class="icon-btn" data-act="deck-menu" aria-label="Deck menu">
+        <i class="fa-solid fa-ellipsis"></i>
+      </button>
+    `;
+
+    root.innerHTML = `
+      ${viewHeaderHTML(deck.name, menuHTML)}
+      <div class="deck-detail-stats">
+        <div class="dd-stat"><div class="n due">${due}</div><div class="l">Due</div></div>
+        <div class="dd-stat"><div class="n">${cards.length}</div><div class="l">Total</div></div>
+        <div class="dd-stat"><div class="n mastered">${mastered}</div><div class="l">Mastered</div></div>
+      </div>
+      <div class="deck-detail-actions">
+        <button class="btn btn-primary btn-block" data-act="study" ${!due || state.readOnly ? 'disabled' : ''}>
+          <i class="fa-solid fa-play"></i> ${due ? `Study ${due} due` : 'Nothing due'}
+        </button>
+      </div>
+      <div class="sort-row" id="sortRow">
+        <button class="sort-chip active" data-sort="due">Due first</button>
+        <button class="sort-chip" data-sort="az">A–Z</button>
+        <button class="sort-chip" data-sort="newest">Newest</button>
+      </div>
+      <div class="view-body" id="deckCardsBody"></div>
+    `;
+
+    root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+    root.querySelector('[data-act="study"]').addEventListener('click', () => {
+      if (state.readOnly || !due) return;
+      closeView();
+      setTimeout(() => startStudy({ deckId }), 100);
+    });
+
+    root.querySelector('[data-act="deck-menu"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDeckMenu(deck, e.currentTarget);
+    });
+
+    root.querySelector('[data-act="deck-intervals"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openIntervalsSheet(deck.id);
+    });
+
+    root.querySelectorAll('.sort-chip').forEach((c) => {
+      c.addEventListener('click', () => {
+        state.sortMode = c.dataset.sort;
+        root.querySelectorAll('.sort-chip').forEach((x) => x.classList.toggle('active', x === c));
+        renderDeckCards(root.querySelector('#deckCardsBody'), cards);
+      });
+    });
+
+    renderDeckCards(root.querySelector('#deckCardsBody'), cards);
+  }
+
+  function renderDeckCards(container, cards) {
+    if (!cards.length) {
+      container.innerHTML = emptyStateHTML('deck-cards');
+      return;
+    }
+
+    const sorted = cards.slice();
+    if (state.sortMode === 'due') {
+      sorted.sort((a, b) => {
+        const aDue = Storage.isDue(a) ? 0 : 1;
+        const bDue = Storage.isDue(b) ? 0 : 1;
+        if (aDue !== bDue) return aDue - bDue;
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      });
+    } else if (state.sortMode === 'az') {
+      sorted.sort((a, b) => (a.front || a.clozeText || '').localeCompare(b.front || b.clozeText || ''));
+    } else if (state.sortMode === 'newest') {
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    container.innerHTML = '';
+    sorted.forEach((card) => container.appendChild(renderCardRow(card)));
+  }
+
+  function renderCardRow(card) {
+    const row = document.createElement('button');
+    row.className = 'card-row';
+
+    const displayFront = card.type === 'cloze' 
+      ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') 
+      : card.front;
+
+    let typeLabel = '';
+    if (card.type === 'cloze') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Cloze</span>';
+    if (card.type === 'typing') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Typing</span>';
+    if (card.type === 'reversed') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Reversed</span>';
+    if (card.failCount >= 5) typeLabel += '<span class="tag" style="background:var(--again); color:#fff;">Leech</span>';
+
+    const statusClass = dueLabelClass(card);
+    const statusText = dueLabel(card);
+
+    row.innerHTML = `
+      <div class="card-row-body">
+        <div class="card-row-front">${escapeHTML(displayFront || 'Empty card')}</div>
+        ${typeLabel ? `<div class="card-row-meta">${typeLabel}</div>` : ''}
+      </div>
+      <span class="card-row-status ${statusClass}">${escapeHTML(statusText)}</span>
+    `;
+
+    row.addEventListener('click', () => {
+      if (state.readOnly) return;
+      openCardMenu(card, row);
+    });
+
+    return row;
+  }
+
+  function openCardMenu(card, anchor) {
+    const menu = document.createElement('div');
+    menu.className = 'popover';
+    menu.innerHTML = `
+      <button data-act="edit"><i class="fa-solid fa-pen"></i>Edit card</button>
+      <button data-act="bury"><i class="fa-solid fa-bed"></i>${Storage.isBuried(card) ? 'Unbury' : 'Bury until tomorrow'}</button>
+      <button data-act="duplicate"><i class="fa-solid fa-copy"></i>Duplicate</button>
+      <button data-act="move"><i class="fa-solid fa-folder-tree"></i>Move to deck…</button>
+      <button data-act="master"><i class="fa-solid fa-check-double"></i>${Storage.isMastered(card) ? 'Unmark mastered' : 'Mark mastered'}</button>
+      <button data-act="reset"><i class="fa-solid fa-rotate-left"></i>Reset progress</button>
+      <button data-act="delete" class="danger"><i class="fa-solid fa-trash-can"></i>Delete card</button>
+    `;
+    const rect = anchor.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 6}px`;
+    menu.style.left = `${Math.max(12, rect.right - 200)}px`;
+    menu.style.zIndex = 65;
+    document.body.appendChild(menu);
+
+    const close = () => menu.remove();
+    setTimeout(() => document.addEventListener('click', function h(e) {
+      if (!menu.contains(e.target)) { close(); document.removeEventListener('click', h); }
+    }), 0);
+
+    menu.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        const act = b.dataset.act;
+        if (act === 'edit') openCardForm({ cardId: card.id });
+        else if (act === 'bury') toggleBury(card);
+        else if (act === 'duplicate') duplicateCard(card);
+        else if (act === 'move') openMoveCardSheet(card);
+        else if (act === 'master') toggleMastered(card);
+        else if (act === 'reset') resetCardProgress(card);
+        else if (act === 'delete') confirmDeleteCard(card);
+      });
+    });
+  }
+
+  function toggleBury(card) {
+    if (Storage.isBuried(card)) {
+      Storage.updateCard(card.id, { buriedUntil: null });
+      toast('Unburied', { type: 'success', icon: 'fa-bed' });
+    } else {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(4, 0, 0, 0); // 4am tomorrow
+      Storage.updateCard(card.id, { buriedUntil: tomorrow.toISOString() });
+      toast('Buried until tomorrow', { type: 'success', icon: 'fa-bed' });
+    }
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const view = $('#viewRoot .view');
+      if (view) renderDeckDetail(view, state.currentDeckId);
+    }
+  }
+
+  function duplicateCard(card) {
+    Storage.addCard({
+      deckId: card.deckId,
+      type: card.type,
+      front: card.front,
+      back: card.back,
+      clozeText: card.clozeText,
+      tags: [...(card.tags || [])]
+    });
+    toast('Card duplicated', { type: 'success', icon: 'fa-copy' });
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const view = $('#viewRoot .view');
+      if (view) renderDeckDetail(view, state.currentDeckId);
+    }
+  }
+
+  function openMoveCardSheet(card) {
+    const decks = state.data.decks.filter(d => d.id !== card.deckId);
+    if (!decks.length) { toast('No other decks available', { type: 'info' }); return; }
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Move Card</h3>
+      <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 8px;">
+        ${decks.map(d => `<button class="btn btn-ghost" data-deck="${d.id}">${escapeHTML(d.name)}</button>`).join('')}
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelectorAll('[data-deck]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.deck;
+        Storage.updateCard(card.id, { deckId: targetId });
+        if (card.siblingId) Storage.updateCard(card.siblingId, { deckId: targetId });
+        closeModal();
+        refresh();
+        if (!$('#viewRoot').hidden && state.currentDeckId) {
+          const view = $('#viewRoot .view');
+          if (view) renderDeckDetail(view, state.currentDeckId);
         }
+        toast('Card moved', { type: 'success', icon: 'fa-folder-tree' });
+      });
     });
-    popupMenu.querySelectorAll('.popup-item').forEach(item => {
-        item.addEventListener('click', () => {
-            popupMenu.classList.remove('open');
-            const action = item.dataset.menu;
-            if (action === 'stats') openStats();
-            else if (action === 'hardest') openHardest();
-            else if (action === 'settings') showView('settings');
-        });
+  }
+
+  function toggleMastered(card) {
+    Storage.updateCard(card.id, { manuallyMastered: !card.manuallyMastered });
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const view = $('#viewRoot .view');
+      if (view) renderDeckDetail(view, state.currentDeckId);
+    }
+    toast(card.manuallyMastered ? 'Unmarked' : 'Marked as mastered', { type: 'success', icon: 'fa-check-double' });
+  }
+
+  function resetCardProgress(card) {
+    Storage.resetCardProgress(card.id);
+    refresh();
+    toast('Card progress reset', { type: 'success', icon: 'fa-rotate-left' });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Study engine                                                */
+  /* ---------------------------------------------------------- */
+  function startStudy({ deckId, mode = 'normal', tag = null }) {
+    let cards = state.data.cards.filter(c => !deckId || c.deckId === deckId);
+    
+    if (mode === 'normal') {
+      cards = cards.filter(Storage.isDue);
+    } else if (mode === 'tag') {
+      cards = cards.filter(c => (c.tags || []).includes(tag));
+    } // cram mode doesn't filter by dueDate or buried
+
+    // Shuffle
+    cards = cards.sort(() => Math.random() - 0.5);
+
+    if (!cards.length) { 
+      toast(mode === 'cram' ? 'Deck is empty' : 'Nothing due to study', { type: 'info', icon: 'fa-circle-info' }); 
+      return; 
+    }
+
+    state.study = {
+      deckId,
+      mode,
+      queue: cards.map((c) => c.id),
+      index: 0,
+      flipped: false,
+      typedChecked: false
+    };
+    openView('study', { deckId });
+  }
+
+  function renderStudyView(root, payload) {
+    if (!state.study) { closeView(); return; }
+    const { deckId } = state.study;
+    const deck = deckId ? Storage.getDeck(deckId) : null;
+
+    root.innerHTML = `
+      <div class="study-wrap">
+        <div class="study-head">
+          <button class="view-back" data-act="exit" aria-label="Exit study">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          <div class="study-deck-name">${escapeHTML(deck ? deck.name : 'All due cards')}</div>
+          <div class="study-counter" id="studyCounter"></div>
+        </div>
+        <div class="study-progress"><div class="fill" id="studyProgressFill"></div></div>
+        <div class="study-card" id="studyCard">
+          <div class="study-front" id="studyFront"></div>
+          <div class="study-back" id="studyBack"></div>
+          <div class="study-tags" id="studyTags"></div>
+        </div>
+        <div class="study-hint" id="studyHint">Tap the card to reveal the answer</div>
+        <div class="study-actions" id="studyActions">
+          <button class="reveal-btn" id="revealBtn">Reveal answer</button>
+          <div class="rating-grid" id="ratingGrid" hidden></div>
+          <button class="skip-btn" id="skipBtn">Skip for now</button>
+        </div>
+      </div>
+    `;
+
+    root.querySelector('[data-act="exit"]').addEventListener('click', () => {
+      state.study = null;
+      closeView();
     });
 
-    // Home: new deck
-    document.getElementById('newDeckBtn').addEventListener('click', () => openDeckEditor(null));
-
-    // Deck: back, study, menu
-    document.getElementById('backFromDeckBtn').addEventListener('click', () => showView('home'));
-    document.getElementById('startStudyBtn').addEventListener('click', () => startStudy(currentDeckId));
-
-    const deckMenuBtn = document.getElementById('deckMenuBtn');
-    const deckMenu = document.getElementById('deckMenu');
-    deckMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = deckMenu.classList.contains('open');
-        closeAllPopups();
-        if (!isOpen) deckMenu.classList.add('open');
-    });
-    document.addEventListener('click', (e) => {
-        if (!deckMenu.contains(e.target) && !deckMenuBtn.contains(e.target)) {
-            deckMenu.classList.remove('open');
-        }
-    });
-    deckMenu.querySelectorAll('.popup-item').forEach(item => {
-        item.addEventListener('click', () => {
-            deckMenu.classList.remove('open');
-            const action = item.dataset.deckAction;
-            if (action === 'tag') openStudyByTag();
-            else if (action === 'cram') startStudy(currentDeckId, 'cram');
-            else if (action === 'edit') openDeckEditor(currentDeckId);
-            else if (action === 'delete') {
-                if (confirm(`Delete "${state.decks[currentDeckId]?.name}" and all its cards?`)) {
-                    deleteDeck(currentDeckId);
-                    currentDeckId = null;
-                    showView('home');
-                }
-            }
-        });
+    root.querySelector('#skipBtn').addEventListener('click', () => {
+      if (!state.study) return;
+      const cur = state.study.queue.splice(state.study.index, 1)[0];
+      state.study.queue.push(cur);
+      state.study.flipped = false;
+      state.study.typedChecked = false;
+      renderStudyCard(root);
     });
 
-    // Deck: filters
-    document.querySelectorAll('#cardFilters .filter-pill').forEach(btn => {
-        btn.addEventListener('click', () => {
-            cardFilter = btn.dataset.filter;
-            renderDeck();
-        });
-    });
+    renderStudyCard(root);
+  }
 
-    // Deck: new card
-    document.getElementById('newCardBtn').addEventListener('click', () => openCardEditor(null));
+  function renderStudyCard(root) {
+    if (!state.study) { closeView(); return; }
+    const s = state.study;
 
-    // Study: exit
-    document.getElementById('exitStudyBtn').addEventListener('click', exitStudy);
+    if (s.index >= s.queue.length) {
+      root.querySelector('.study-wrap').innerHTML = `
+        <div class="study-complete">
+          <div class="icon"><i class="fa-solid fa-check"></i></div>
+          <h2>All done for now</h2>
+          <p>You reviewed every card in this session.</p>
+          <button class="btn btn-primary" style="margin-top:12px;" id="doneBtn">Back to decks</button>
+        </div>
+      `;
+      root.querySelector('#doneBtn').addEventListener('click', () => {
+        state.study = null;
+        closeView();
+      });
+      return;
+    }
 
-    // Settings
-    document.getElementById('backFromSettingsBtn').addEventListener('click', () => showView('home'));
-    document.querySelectorAll('.group-header').forEach(h => {
-        h.addEventListener('click', function() {
-            const content = this.nextElementSibling;
-            const icon = this.querySelector('.toggle-icon');
-            if (content.classList.contains('open')) {
-                content.classList.remove('open');
-                icon.classList.remove('open');
-            } else {
-                content.classList.add('open');
-                icon.classList.add('open');
-            }
-        });
-    });
+    const card = state.data.cards.find((c) => c.id === s.queue[s.index]);
+    if (!card) { s.index++; renderStudyCard(root); return; }
 
-    document.getElementById('connectDriveBtn').addEventListener('click', connectDrive);
-    document.getElementById('drivePushBtn').addEventListener('click', drivePush);
-    document.getElementById('drivePullBtn').addEventListener('click', drivePull);
-    document.getElementById('exportBtn').addEventListener('click', exportJson);
-    document.getElementById('importBtn').addEventListener('click', importJson);
-    document.getElementById('resetBtn').addEventListener('click', resetAll);
+    const deck = Storage.getDeck(card.deckId);
+    const intervals = deck ? deck.intervals : Storage.DEFAULT_INTERVALS;
 
-    document.getElementById('backupInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            try {
-                const backup = JSON.parse(ev.target.result);
-                if (!backup.state) throw new Error('Invalid');
-                if (!confirm('Replace all local data with this backup?')) return;
-                state = backup.state;
-                if (!state.deletedIds) state.deletedIds = { decks: [], cards: [] };
-                if (!state.studyStreak) state.studyStreak = { lastDate: null, count: 0 };
-                saveState();
-                renderHome();
-                showToast('Imported from backup');
-            } catch (err) {
-                showToast('Invalid backup file');
-            }
+    const frontEl = root.querySelector('#studyFront');
+    const backEl = root.querySelector('#studyBack');
+    const tagsEl = root.querySelector('#studyTags');
+    const hintEl = root.querySelector('#studyHint');
+    const revealBtn = root.querySelector('#revealBtn');
+    const ratingGrid = root.querySelector('#ratingGrid');
+    const skipBtn = root.querySelector('#skipBtn');
+    const studyCardEl = root.querySelector('#studyCard');
+
+    // Reset UI state
+    backEl.classList.remove('show');
+    tagsEl.innerHTML = '';
+    hintEl.hidden = false;
+    revealBtn.hidden = false;
+    ratingGrid.hidden = true;
+    ratingGrid.innerHTML = '';
+    skipBtn.hidden = false;
+    studyCardEl.onclick = null;
+
+    // Tags
+    if (card.tags && card.tags.length) {
+      tagsEl.innerHTML = card.tags.map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
+      tagsEl.style.display = 'flex';
+    } else {
+      tagsEl.style.display = 'none';
+    }
+
+    // Render based on type
+    if (card.type === 'cloze') {
+      const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
+      if (s.flipped) {
+        frontEl.innerHTML = card.clozeText.replace(regex, (_, ans) => `<span class="study-cloze-answer">${escapeHTML(ans)}</span>`);
+      } else {
+        frontEl.innerHTML = card.clozeText.replace(regex, (_, ans) => `<span class="study-cloze-blank">${'_'.repeat(Math.min(ans.length, 8))}</span>`);
+      }
+      
+      studyCardEl.onclick = () => {
+        if (s.flipped) return;
+        s.flipped = true;
+        renderStudyCard(root); // Re-render to show answers
+      };
+    } else if (card.type === 'typing') {
+      frontEl.textContent = card.front;
+      hintEl.hidden = true;
+      revealBtn.hidden = true;
+      
+      if (!s.typedChecked) {
+        ratingGrid.hidden = false;
+        ratingGrid.style.display = 'flex';
+        ratingGrid.style.flexDirection = 'column';
+        ratingGrid.innerHTML = `
+          <input type="text" id="typingInput" class="study-typing-input" placeholder="Type your answer..." autocomplete="off">
+          <button class="btn btn-primary" id="checkBtn" style="margin-top:10px;">Check</button>
+        `;
+        const input = ratingGrid.querySelector('#typingInput');
+        input.focus();
+        
+        const doCheck = () => {
+          if (!input.value.trim()) return;
+          const val = input.value.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
+          const ans = card.back.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
+          s.typedChecked = true;
+          s.flipped = true;
+          backEl.textContent = card.back;
+          backEl.classList.add('show');
+          
+          if (val === ans) toast('Correct!', { type: 'success', icon: 'fa-check' });
+          else toast('Incorrect', { type: 'error', icon: 'fa-xmark' });
+          
+          renderStudyCard(root);
         };
-        reader.readAsText(file);
-        this.value = '';
-    });
-
-    // Modal
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) closeModal();
-    });
-
-    // Undo
-    document.getElementById('undoBtn').addEventListener('click', undoDeleteCard);
-
-    // Update toast
-    const refreshBtn = document.getElementById('updateRefreshBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-            } else {
-                window.location.reload();
-            }
-        });
+        
+        input.addEventListener('keydown', e => { if(e.key==='Enter') doCheck(); });
+        ratingGrid.querySelector('#checkBtn').addEventListener('click', doCheck);
+      } else {
+        backEl.textContent = card.back;
+        backEl.classList.add('show');
+        showRatingGrid();
+      }
+    } else {
+      frontEl.textContent = card.front;
+      backEl.textContent = card.back;
+      studyCardEl.onclick = () => {
+        if (s.flipped) return;
+        s.flipped = true;
+        backEl.classList.add('show');
+        hintEl.hidden = true;
+        revealBtn.hidden = true;
+        showRatingGrid();
+      };
     }
 
-    // Keyboard
-    document.addEventListener('keydown', handleKeyboard);
-}
+    // Reveal button logic
+    if (!s.flipped && card.type !== 'typing') {
+       revealBtn.onclick = (e) => {
+         e.stopPropagation();
+         studyCardEl.click();
+       };
+    }
 
-// ============================================================
-// ONLINE / OFFLINE
-// ============================================================
-function updateOnlineStatus() {
-    const banner = document.getElementById('offlineBanner');
-    if (navigator.onLine) banner.classList.remove('show');
-    else banner.classList.add('show');
-}
-
-// ============================================================
-// SERVICE WORKER
-// ============================================================
-function initSW() {
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('sw.js', { scope: './' }).then(reg => {
-        reg.addEventListener('updatefound', () => {
-            const nw = reg.installing;
-            nw.addEventListener('statechange', () => {
-                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-                    const toast = document.getElementById('updateToast');
-                    toast.classList.add('show');
-                    setTimeout(() => toast.classList.remove('show'), 5000);
-                }
-            });
+    function showRatingGrid() {
+      revealBtn.hidden = true;
+      ratingGrid.hidden = false;
+      ratingGrid.style.display = 'grid';
+      ratingGrid.style.flexDirection = '';
+      ratingGrid.innerHTML = RATING_LABELS.map((label, i) => `
+        <button class="rate-btn rate-${RATING_CLASSES[i]}" data-rating="${i}">
+          ${label}
+          <span class="interval">${intervalDisplay(intervals[i])}</span>
+        </button>
+      `).join('');
+      
+      ratingGrid.querySelectorAll('.rate-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          Storage.rateCard(card.id, Number(btn.dataset.rating));
+          state.data = Storage.getData();
+          s.index++;
+          s.flipped = false;
+          s.typedChecked = false;
+          renderStudyCard(root);
         });
-    }).catch(() => {});
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
+      });
+    }
+
+    // Counter and Progress
+    root.querySelector('#studyCounter').textContent = `${s.index + 1} / ${s.queue.length}`;
+    root.querySelector('#studyProgressFill').style.width = `${(s.index / s.queue.length) * 100}%`;
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Activity view                                               */
+  /* ---------------------------------------------------------- */
+  function renderActivityView(root) {
+    const data = state.data;
+    const total = data.cards.length;
+    const due = Storage.totalDueCount(data);
+    const mastered = Storage.masteredCount(data);
+    const streak = Storage.streak(data);
+
+    let totalReviews = 0, correctReviews = 0, leeches = 0;
+    data.cards.forEach(c => {
+      if (c.failCount >= 5) leeches++;
     });
-}
+    (data.reviews || []).forEach(r => {
+      totalReviews++;
+      if (r.rating >= 2) correctReviews++;
+    });
+    const retention = totalReviews ? Math.round((correctReviews / totalReviews) * 100) : 0;
 
-// ============================================================
-// BOOT
-// ============================================================
-applyTheme();
-bindEvents();
-renderHome();
-updateOnlineStatus();
-initSW();
+    root.innerHTML = `
+      ${viewHeaderHTML('Activity')}
+      <div class="view-body">
+        <div class="stats-grid">
+          <div class="stat-tile">
+            <div class="n">${total}</div>
+            <div class="l"><i class="fa-solid fa-clone"></i>Total cards</div>
+          </div>
+          <div class="stat-tile warn">
+            <div class="n">${due}</div>
+            <div class="l"><i class="fa-solid fa-bolt"></i>Due now</div>
+          </div>
+          <div class="stat-tile success">
+            <div class="n">${mastered}</div>
+            <div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div>
+          </div>
+          <div class="stat-tile">
+            <div class="n">${streak}<small>d</small></div>
+            <div class="l"><i class="fa-solid fa-fire"></i>Streak</div>
+          </div>
+          <div class="stat-tile">
+            <div class="n">${retention}%</div>
+            <div class="l"><i class="fa-solid fa-brain"></i>Retention</div>
+          </div>
+          <div class="stat-tile">
+            <div class="n">${leeches}</div>
+            <div class="l"><i class="fa-solid fa-bug"></i>Leeches</div>
+          </div>
+        </div>
 
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
+        <section class="activity-section">
+          <div class="activity-section-title">Last 90 days</div>
+          <div class="heatmap-wrap">
+            <div class="heatmap" id="heatmap"></div>
+            <div class="heatmap-legend">
+              <span>Less</span>
+              <span class="heat-cell lvl-0"></span>
+              <span class="heat-cell lvl-1"></span>
+              <span class="heat-cell lvl-2"></span>
+              <span class="heat-cell lvl-3"></span>
+              <span class="heat-cell lvl-4"></span>
+              <span>More</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="activity-section">
+          <div class="activity-section-title">Review history</div>
+          <div class="activity-feed" id="activityFeed"></div>
+        </section>
+      </div>
+    `;
+
+    root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+    renderHeatmap(root.querySelector('#heatmap'));
+    renderActivityFeed(root.querySelector('#activityFeed'));
+  }
+
+  function renderHeatmap(container) {
+    const { counts } = Storage.heatmapData(state.data, 90);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 89);
+    start.setDate(start.getDate() - start.getDay());
+
+    const cells = [];
+    const cursor = new Date(start);
+    while (cursor <= today) {
+      const k = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      const n = counts[k] || 0;
+      let lvl = 0;
+      if (n >= 1 && n <= 3) lvl = 1;
+      else if (n >= 4 && n <= 8) lvl = 2;
+      else if (n >= 9 && n <= 15) lvl = 3;
+      else if (n >= 16) lvl = 4;
+      cells.push(`<span class="heat-cell lvl-${lvl}" title="${cursor.toDateString()} — ${n} review${n === 1 ? '' : 's'}"></span>`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    container.innerHTML = cells.join('');
+  }
+
+  function renderActivityFeed(container) {
+    const reviews = (state.data.reviews || []).slice().reverse();
+    if (!reviews.length) {
+      container.innerHTML = `
+        <div class="search-hint">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <div class="search-hint-title">No reviews yet</div>
+          <div class="search-hint-sub">Study a deck to see your review history here.</div>
+        </div>`;
+      return;
+    }
+
+    const groups = new Map();
+    reviews.slice(0, 200).forEach((r) => {
+      const d = new Date(r.at);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    });
+
+    container.innerHTML = '';
+    groups.forEach((entries) => {
+      const day = document.createElement('div');
+      day.innerHTML = `<div class="feed-day-label">${escapeHTML(dayLabel(entries[0].at))}</div>`;
+      entries.forEach((r) => {
+        const card = state.data.cards.find((c) => c.id === r.cardId);
+        const deck = state.data.decks.find((d) => d.id === r.deckId);
+        if (!card) return;
+        const time = new Date(r.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const entry = document.createElement('div');
+        entry.className = 'feed-entry';
+        entry.innerHTML = `
+          <span class="dot" style="background:${deck?.color || 'var(--accent)'}"></span>
+          <div class="feed-body">
+            <div class="feed-title">${escapeHTML(card.front || card.clozeText || 'Card')}</div>
+            <div class="feed-sub">${escapeHTML(deck?.name || 'Unknown')} · ${time}</div>
+          </div>
+          <span class="feed-rating rating-${RATING_CLASSES[r.rating]}">${RATING_LABELS[r.rating]}</span>
+        `;
+        day.appendChild(entry);
+      });
+      container.appendChild(day);
+    });
+  }
+
+  function dayLabel(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date(Date.now() - 86400000);
+    const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (same(d, today)) return 'Today';
+    if (same(d, yesterday)) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Search view                                                 */
+  /* ---------------------------------------------------------- */
+  function renderSearchView(root) {
+    root.innerHTML = `
+      <div class="view-header view-header-search">
+        <button class="view-back" data-act="back" aria-label="Back">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="searchInput" placeholder="Search cards, decks, tags…" autocomplete="off" spellcheck="false">
+          <button class="search-clear" id="searchClear" hidden aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div class="view-body" id="searchResults"></div>
+    `;
+    root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+
+    const input = root.querySelector('#searchInput');
+    const clearBtn = root.querySelector('#searchClear');
+    const results = root.querySelector('#searchResults');
+
+    setTimeout(() => input.focus(), 100);
+
+    function render() {
+      const q = input.value.trim().toLowerCase();
+      clearBtn.hidden = !q;
+
+      if (!q) {
+        results.innerHTML = `
+          <div class="search-hint">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <div class="search-hint-title">Search your cards</div>
+            <div class="search-hint-sub">Find by front, back, or tags. Use <strong>#tag</strong> for tag-only matches.</div>
+          </div>`;
+        return;
+      }
+
+      const isTag = q.startsWith('#');
+      const term = isTag ? q.slice(1) : q;
+      const matches = [];
+      state.data.cards.forEach((c) => {
+        const deck = Storage.getDeck(c.deckId);
+        const tags = c.tags || [];
+        let hit = false;
+        if (isTag) hit = tags.some((t) => t.toLowerCase().includes(term));
+        else hit = (c.front || '').toLowerCase().includes(term)
+              || (c.back || '').toLowerCase().includes(term)
+              || (c.clozeText || '').toLowerCase().includes(term)
+              || tags.some((t) => t.toLowerCase().includes(term))
+              || (deck?.name || '').toLowerCase().includes(term);
+        if (hit) matches.push({ card: c, deck });
+      });
+
+      if (!matches.length) {
+        results.innerHTML = `
+          <div class="search-hint">
+            <i class="fa-solid fa-face-frown"></i>
+            <div class="search-hint-title">No matches</div>
+            <div class="search-hint-sub">Nothing found for "<strong>${escapeHTML(q)}</strong>".</div>
+          </div>`;
+        return;
+      }
+
+      results.innerHTML = `<div class="search-label">${matches.length} result${matches.length === 1 ? '' : 's'}</div>`;
+      matches.slice(0, 100).forEach(({ card, deck }) => {
+        const row = document.createElement('button');
+        row.className = 'card-row';
+        const statusClass = dueLabelClass(card);
+        const statusText = dueLabel(card);
+        const displayFront = card.type === 'cloze' ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') : card.front;
+        
+        row.innerHTML = `
+          <div class="card-row-body">
+            <div class="card-row-front">${highlight(displayFront, term)}</div>
+            <div class="card-row-meta">
+              <span class="tag" style="background: color-mix(in srgb, ${deck?.color || 'var(--accent)'} 18%, transparent); color: ${deck?.color || 'var(--accent)'};">${escapeHTML(deck?.name || '')}</span>
+            </div>
+          </div>
+          <span class="card-row-status ${statusClass}">${escapeHTML(statusText)}</span>
+        `;
+        row.addEventListener('click', () => {
+          if (state.readOnly) return;
+          openCardForm({ cardId: card.id });
+        });
+        results.appendChild(row);
+      });
+    }
+
+    function highlight(text, query) {
+      const t = String(text || '');
+      if (!query) return escapeHTML(t);
+      const idx = t.toLowerCase().indexOf(query.toLowerCase());
+      if (idx === -1) return escapeHTML(t);
+      return escapeHTML(t.slice(0, idx)) + '<mark>' + escapeHTML(t.slice(idx, idx + query.length)) + '</mark>' + escapeHTML(t.slice(idx + query.length));
+    }
+
+    input.addEventListener('input', render);
+    clearBtn.addEventListener('click', () => { input.value = ''; input.focus(); render(); });
+    render();
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Tags view                                                   */
+  /* ---------------------------------------------------------- */
+  function renderTagsView(root) {
+    const counts = {};
+    state.data.cards.forEach((c) => {
+      (c.tags || []).forEach((t) => {
+        counts[t] = (counts[t] || 0) + 1;
+      });
+    });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    root.innerHTML = `
+      ${viewHeaderHTML('Tags')}
+      <div class="view-body">
+        ${sorted.length ? sorted.map(([tag, n]) => `
+          <button class="tag-row" data-tag="${escapeHTML(tag)}">
+            <span class="tag-row-name">#${escapeHTML(tag)}</span>
+            <span class="tag-row-count">${n} card${n === 1 ? '' : 's'}</span>
+          </button>
+        `).join('') : `
+          <div class="search-hint">
+            <i class="fa-solid fa-tag"></i>
+            <div class="search-hint-title">No tags yet</div>
+            <div class="search-hint-sub">Add tags to cards to organize them across decks.</div>
+          </div>
+        `}
+      </div>
+    `;
+
+    root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+    root.querySelectorAll('.tag-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        closeView();
+        setTimeout(() => openView('search'), 80);
+        setTimeout(() => {
+          const inp = document.querySelector('#searchInput');
+          if (inp) { inp.value = `#${row.dataset.tag}`; inp.dispatchEvent(new Event('input')); }
+        }, 200);
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Settings view                                               */
+  /* ---------------------------------------------------------- */
+  function renderSettingsView(root) {
+    const currentFamily = getFamily();
+    const currentMode = getMode();
+
+    const themeCircles = THEME_FAMILIES.map((t) => `
+      <button class="theme-circle ${t.id === currentFamily ? 'active' : ''}" data-family-id="${t.id}">
+        <span class="theme-circle-swatch" style="--c1:${t.c1};--c2:${t.c2};">
+          <span class="theme-circle-half theme-circle-left"></span>
+          <span class="theme-circle-half theme-circle-right"></span>
+        </span>
+        <span class="theme-circle-name">${escapeHTML(t.name)}</span>
+      </button>
+    `).join('');
+
+    const ro = state.readOnly;
+
+    root.innerHTML = `
+      ${viewHeaderHTML('Settings')}
+      <div class="view-body">
+
+        <section class="settings-section">
+          <div class="settings-section-title">Appearance</div>
+          <div class="theme-circle-row">${themeCircles}</div>
+          <div class="settings-section-hint">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
+        </section>
+
+        ${!ro ? `
+        <section class="settings-section">
+          <div class="settings-section-title">Google Drive</div>
+          <div class="settings-card">
+            <div class="drive-block">
+              <label class="drive-field">
+                <span class="drive-field-label">OAuth Client ID</span>
+                <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <div class="drive-actions">
+                <button class="drive-btn" id="driveConnectBtn"><i class="fa-solid fa-plug"></i><span>Connect</span></button>
+                <button class="drive-btn primary" id="drivePushBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span>Push</span></button>
+                <button class="drive-btn" id="drivePullBtn"><i class="fa-solid fa-cloud-arrow-down"></i><span>Pull</span></button>
+              </div>
+              <div class="drive-status" id="driveStatus">Not connected</div>
+            </div>
+          </div>
+        </section>
+        ` : ''}
+
+        <section class="settings-section">
+          <div class="settings-section-title">About</div>
+          <div class="settings-card">
+            <div class="settings-row static">
+              <i class="fa-solid fa-code-branch"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">Version</div>
+                <div class="settings-row-sub" id="appVersion">Loading…</div>
+              </div>
+            </div>
+            <div class="settings-row static">
+              <i class="fa-solid fa-database"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">Stored locally</div>
+                <div class="settings-row-sub">Your data never leaves this device unless Drive sync is enabled</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        ${!ro ? `
+        <section class="settings-section">
+          <div class="settings-section-title">Danger zone</div>
+          <div class="settings-card">
+            <button class="settings-row danger" id="resetAllRow">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">Reset all data</div>
+                <div class="settings-row-sub">Permanently delete every deck, card, and review</div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-row-chevron"></i>
+            </button>
+          </div>
+        </section>
+        ` : ''}
+
+        <div class="settings-footer">CjayCards · Spaced Repetition</div>
+      </div>
+    `;
+
+    root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+
+    getAppVersion().then((v) => {
+      const el = root.querySelector('#appVersion');
+      if (el) el.textContent = v;
+    });
+
+    root.querySelectorAll('.theme-circle').forEach((circle) => {
+      circle.addEventListener('click', () => {
+        const id = circle.dataset.familyId;
+        applyTheme(id, getMode());
+        persistTheme(id, getMode());
+        root.querySelectorAll('.theme-circle').forEach((c) => {
+          c.classList.toggle('active', c.dataset.familyId === id);
+        });
+      });
+    });
+
+    const driveInput = root.querySelector('#driveClientId');
+    if (driveInput) {
+      driveInput.value = getStoredClientId();
+      driveInput.addEventListener('blur', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+      driveInput.addEventListener('change', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+
+      root.querySelector('#driveConnectBtn').addEventListener('click', driveConnect);
+      root.querySelector('#drivePushBtn').addEventListener('click', drivePush);
+      root.querySelector('#drivePullBtn').addEventListener('click', drivePull);
+      updateDriveStatus();
+    }
+
+    const resetRow = root.querySelector('#resetAllRow');
+    if (resetRow) {
+      resetRow.addEventListener('click', () => { closeView(); setTimeout(confirmResetAll, 100); });
+    }
+  }
+
+  async function getAppVersion() {
+    try {
+      const res = await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' });
+      const text = await res.text();
+      const m = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      return m ? `v${m[1].replace(/^v/, '')}` : 'unknown';
+    } catch { return 'unknown'; }
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Deck form                                                   */
+  /* ---------------------------------------------------------- */
+  function openDeckForm({ deckId = null } = {}) {
+    const editing = deckId ? Storage.getDeck(deckId) : null;
+    let color = editing?.color || Storage.DECK_COLORS[0];
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">${editing ? 'Edit deck' : 'New deck'}</h3>
+      <label class="field">
+        <span class="field-label">Deck name</span>
+        <input type="text" id="fName" placeholder="e.g. Anatomy" value="${editing ? escapeHTML(editing.name) : ''}" autocomplete="off">
+      </label>
+      <div class="field">
+        <span class="field-label">Color</span>
+        <div class="color-row" id="colorRow">
+          ${Storage.DECK_COLORS.map((c) => `
+            <button type="button" class="color-swatch ${c === color ? 'active' : ''}" data-color="${c}" style="background:${c}"></button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${editing ? 'Save' : 'Create'}</button>
+      </div>
+    `;
+    openModal(sheet);
+
+    const nameInput = sheet.querySelector('#fName');
+    const colorRow = sheet.querySelector('#colorRow');
+
+    colorRow.querySelectorAll('.color-swatch').forEach((s) => {
+      s.addEventListener('click', () => {
+        colorRow.querySelectorAll('.color-swatch').forEach((x) => x.classList.remove('active'));
+        s.classList.add('active');
+        color = s.dataset.color;
+      });
+    });
+
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="save"]').addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      if (editing) {
+        Storage.updateDeck(editing.id, { name, color });
+        toast('Deck updated', { type: 'success', icon: 'fa-check' });
+      } else {
+        Storage.addDeck({ name, color });
+        toast('Deck created', { type: 'success', icon: 'fa-plus' });
+      }
+      closeModal();
+      refresh();
+    });
+
+    setTimeout(() => nameInput.focus(), 200);
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Card form                                                   */
+  /* ---------------------------------------------------------- */
+  function openCardForm({ cardId = null, deckId = null } = {}) {
+    const editing = cardId ? Storage.getCard(cardId) : null;
+    let actualEditing = editing;
+    if (editing && editing.type === 'reversed' && editing.siblingId) {
+      actualEditing = Storage.getCard(editing.siblingId) || editing;
+    }
+
+    const decks = state.data.decks;
+    if (!decks.length) {
+      toast('Create a deck first', { type: 'warn', icon: 'fa-triangle-exclamation' });
+      return;
+    }
+
+    let currentDeckId = actualEditing?.deckId || deckId || state.currentDeckId || decks[0].id;
+    const type = actualEditing?.type || 'basic';
+    const isReversed = !!(actualEditing && actualEditing.type === 'basic' && actualEditing.siblingId);
+    const clozeText = actualEditing?.clozeText || '';
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">${actualEditing ? 'Edit card' : 'Add card'}</h3>
+
+      <label class="field">
+        <span class="field-label">Deck</span>
+        <div class="search-wrap" style="height:auto; padding:10px 14px;">
+          <select id="fDeck" style="border:none; background:transparent; color:var(--text); font:inherit; font-size:14.5px; width:100%;">
+            ${decks.map((d) => `<option value="${d.id}" ${d.id === currentDeckId ? 'selected' : ''}>${escapeHTML(d.name)}</option>`).join('')}
+          </select>
+        </div>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Card Type</span>
+        <div class="search-wrap" style="height:auto; padding:10px 14px;">
+          <select id="fType" style="border:none; background:transparent; color:var(--text); font:inherit; font-size:14.5px; width:100%;">
+            <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (Front → Back)</option>
+            <option value="typing" ${type === 'typing' ? 'selected' : ''}>Typing (Type the answer)</option>
+            <option value="cloze" ${type === 'cloze' ? 'selected' : ''}>Cloze (Fill in the blank)</option>
+          </select>
+        </div>
+      </label>
+
+      <div id="basicFields" ${type === 'cloze' ? 'style="display:none"' : ''}>
+        <label class="field">
+          <span class="field-label">Front</span>
+          <textarea id="fFront" placeholder="Question or prompt…">${actualEditing ? escapeHTML(actualEditing.front) : ''}</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Back</span>
+          <textarea id="fBack" placeholder="Answer…">${actualEditing ? escapeHTML(actualEditing.back) : ''}</textarea>
+        </label>
+        <label class="field" style="display:flex; align-items:center; gap:8px; margin-top:16px; cursor:pointer;">
+          <input type="checkbox" id="fReverse" ${isReversed ? 'checked' : ''} style="width:18px; height:18px;">
+          <span class="field-label" style="margin:0;">Also reverse (Back → Front)</span>
+        </label>
+      </div>
+
+      <div id="clozeFields" ${type !== 'cloze' ? 'style="display:none"' : ''}>
+        <label class="field">
+          <span class="field-label">Cloze Text</span>
+          <textarea id="fCloze" placeholder="The capital of France is {{c1::Paris}}." style="min-height:100px;">${escapeHTML(clozeText)}</textarea>
+          <span class="field-hint">Wrap hidden parts in {{c1::answer}}.</span>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Tags <span class="opt">(comma-separated)</span></span>
+        <input type="text" id="fTags" placeholder="e.g. high-yield, exam" value="${actualEditing && actualEditing.tags ? actualEditing.tags.join(', ') : ''}">
+      </label>
+
+      <div class="sheet-actions ${actualEditing ? '' : ''}">
+        ${actualEditing ? '<button class="btn btn-danger-ghost" data-act="delete"><i class="fa-solid fa-trash-can"></i></button>' : ''}
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${actualEditing ? 'Save' : 'Add'}</button>
+      </div>
+    `;
+    openModal(sheet);
+
+    const typeSelect = sheet.querySelector('#fType');
+    typeSelect.addEventListener('change', () => {
+      const v = typeSelect.value;
+      sheet.querySelector('#basicFields').style.display = v === 'cloze' ? 'none' : 'block';
+      sheet.querySelector('#clozeFields').style.display = v === 'cloze' ? 'block' : 'none';
+    });
+
+    const frontInput = sheet.querySelector('#fFront');
+    const backInput = sheet.querySelector('#fBack');
+    const clozeInput = sheet.querySelector('#fCloze');
+    const tagsInput = sheet.querySelector('#fTags');
+    const deckSelect = sheet.querySelector('#fDeck');
+
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="save"]').addEventListener('click', () => {
+      const fType = typeSelect.value;
+      const front = frontInput.value.trim();
+      const back = backInput.value.trim();
+      const fCloze = clozeInput.value.trim();
+      const tags = tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean);
+      const targetDeckId = deckSelect.value;
+      const reverse = sheet.querySelector('#fReverse').checked;
+
+      if (fType === 'cloze') {
+        if (!fCloze || !fCloze.includes('{{')) { toast('Add at least one {{c1::answer}} marker', { type: 'warn' }); return; }
+        if (actualEditing) {
+          Storage.updateCard(actualEditing.id, { type: 'cloze', clozeText: fCloze, tags, deckId: targetDeckId });
+        } else {
+          Storage.addCard({ deckId: targetDeckId, type: 'cloze', clozeText: fCloze, tags });
+        }
+      } else {
+        if (!front || !back) { toast('Front and back required', { type: 'warn' }); return; }
+        
+        if (actualEditing) {
+          const updates = { type: fType, front, back, tags, deckId: targetDeckId };
+          Storage.updateCard(actualEditing.id, updates);
+          
+          if (reverse && !actualEditing.siblingId) {
+            const sib = Storage.addCard({ deckId: targetDeckId, type: 'reversed', front: back, back: front, tags, siblingId: actualEditing.id });
+            Storage.updateCard(actualEditing.id, { siblingId: sib.id });
+          } else if (!reverse && actualEditing.siblingId) {
+            Storage.removeCard(actualEditing.siblingId);
+            Storage.updateCard(actualEditing.id, { siblingId: null });
+          } else if (reverse && actualEditing.siblingId) {
+            Storage.updateCard(actualEditing.siblingId, { front: back, back: front, tags, deckId: targetDeckId });
+          }
+        } else {
+          const primary = Storage.addCard({ deckId: targetDeckId, type: fType, front, back, tags });
+          if (reverse) {
+            const sib = Storage.addCard({ deckId: targetDeckId, type: 'reversed', front: back, back: front, tags, siblingId: primary.id });
+            Storage.updateCard(primary.id, { siblingId: sib.id });
+          }
+        }
+      }
+      toast(actualEditing ? 'Card updated' : 'Card added', { type: 'success' });
+      closeModal();
+      refresh();
+      if (!$('#viewRoot').hidden && state.currentDeckId) {
+        const v = $('#viewRoot .view');
+        if (v) renderDeckDetail(v, state.currentDeckId);
+      }
+    });
+
+    if (actualEditing) {
+      sheet.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        closeModal();
+        confirmDeleteCard(actualEditing);
+      });
+    }
+
+    setTimeout(() => {
+      if (fType === 'cloze') clozeInput.focus();
+      else frontInput.focus();
+    }, 200);
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Delete confirms                                             */
+  /* ---------------------------------------------------------- */
+  function confirmDeleteCard(card) {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Delete card?</h3>
+      <p class="sheet-body">"<strong>${escapeHTML(card.front || card.clozeText || 'Card')}</strong>" will be removed permanently.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-danger" data-act="confirm">Delete</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="confirm"]').addEventListener('click', () => {
+      Storage.removeCard(card.id);
+      closeModal();
+      refresh();
+      if (!$('#viewRoot').hidden && state.currentDeckId) {
+        const v = $('#viewRoot .view');
+        if (v) renderDeckDetail(v, state.currentDeckId);
+      }
+      toast('Card deleted', { type: 'success', icon: 'fa-trash-can' });
+    });
+  }
+
+  function confirmDeleteDeck(deck) {
+    const cards = Storage.cardsOf(deck.id);
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Delete deck?</h3>
+      <p class="sheet-body">"<strong>${escapeHTML(deck.name)}</strong>" and its <strong>${cards.length}</strong> card${cards.length === 1 ? '' : 's'} will be deleted permanently.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-danger" data-act="confirm">Delete</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="confirm"]').addEventListener('click', () => {
+      Storage.removeDeck(deck.id);
+      closeModal();
+      if (!$('#viewRoot').hidden) closeView();
+      refresh();
+      toast('Deck deleted', { type: 'success', icon: 'fa-trash-can' });
+    });
+  }
+
+  function confirmResetDeck(deck) {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Reset progress?</h3>
+      <p class="sheet-body">All cards in "<strong>${escapeHTML(deck.name)}</strong>" will be marked as due today. Mastery tracking will be cleared.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-danger" data-act="confirm">Reset</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="confirm"]').addEventListener('click', () => {
+      Storage.resetDeckProgress(deck.id);
+      closeModal();
+      refresh();
+      toast('Progress reset', { type: 'success', icon: 'fa-rotate-left' });
+    });
+  }
+
+  function confirmResetAll() {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Reset all data?</h3>
+      <p class="sheet-body">This permanently deletes every deck, card, and review. Back up first if you're unsure.</p>
+      <label class="confirm-input-label">
+        Type <code>DELETE</code> to confirm
+        <input type="text" id="confirmResetInput" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </label>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-danger" data-act="confirm" disabled>Reset</button>
+      </div>
+    `;
+    openModal(sheet);
+    const input = sheet.querySelector('#confirmResetInput');
+    const confirmBtn = sheet.querySelector('[data-act="confirm"]');
+    input.addEventListener('input', () => {
+      confirmBtn.disabled = input.value.trim().toUpperCase() !== 'DELETE';
+    });
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    confirmBtn.addEventListener('click', () => {
+      Storage.reset();
+      closeModal();
+      refresh();
+      toast('All data cleared', { type: 'success', icon: 'fa-broom' });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Intervals sheet                                             */
+  /* ---------------------------------------------------------- */
+  function openIntervalsSheet(deckId) {
+    const deck = Storage.getDeck(deckId);
+    if (!deck) return;
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="intervals-head">
+        <span class="intervals-dot" style="background:${deck.color}"></span>
+        <h3 class="intervals-title">${escapeHTML(deck.name)}</h3>
+      </div>
+      <p class="sheet-body" style="padding: 0 20px 20px;">Days until a card resurfaces after each rating.</p>
+      <div style="padding: 0 20px 8px;">
+        <div class="interval-grid">
+          ${RATING_LABELS.map
