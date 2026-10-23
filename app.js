@@ -317,6 +317,7 @@
       case 'activity':  openView('activity'); break;
       case 'settings':  openView('settings'); break;
       case 'tools':     openToolsSheet(); break;
+      case 'drive':     openDriveModal(); break;
       case 'backup':    backupToFile(); break;
       case 'restore':   restoreFromFile(); break;
       case 'import-csv': importCSVFromFile(); break;
@@ -618,7 +619,7 @@
     const list = document.createElement('div');
     list.className = 'deck-list';
     decks.forEach((deck) => {
-      if (recentDecks.length > 0 && recentDecks.includes(deck)) return; // Skip duplicates in "All Decks"
+      if (recentDecks.length > 0 && recentDecks.includes(deck)) return;
       list.appendChild(renderDeckCard(deck));
     });
     screen.appendChild(list);
@@ -682,6 +683,7 @@
       <button data-act="study"><i class="fa-solid fa-play"></i>Study now</button>
       <button data-act="cram"><i class="fa-solid fa-bolt"></i>Cram mode</button>
       <button data-act="tag"><i class="fa-solid fa-tag"></i>Study by tag…</button>
+      <button data-act="export-csv"><i class="fa-solid fa-file-csv"></i>Export deck CSV</button>
       <button data-act="edit"><i class="fa-solid fa-pen"></i>Edit deck</button>
       <button data-act="intervals"><i class="fa-solid fa-sliders"></i>Intervals</button>
       <button data-act="reset" class="danger"><i class="fa-solid fa-rotate-left"></i>Reset progress</button>
@@ -707,6 +709,7 @@
         else if (act === 'study') startStudy({ deckId: deck.id });
         else if (act === 'cram') startStudy({ deckId: deck.id, mode: 'cram' });
         else if (act === 'tag') openStudyByTagSheet(deck.id);
+        else if (act === 'export-csv') exportCSV(deck.id);
         else if (act === 'edit') openDeckForm({ deckId: deck.id });
         else if (act === 'intervals') openIntervalsSheet(deck.id);
         else if (act === 'reset') confirmResetDeck(deck);
@@ -876,7 +879,6 @@
       renderDeckCards(root.querySelector('#deckCardsBody'), cards);
     });
 
-    // Bulk Actions Logic
     function updateBulkBar(r) {
       r.querySelector('#bulkCount').textContent = `${state.selectedCards.size} selected`;
     }
@@ -1481,14 +1483,13 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Activity view                                               */
+  /* Activity view (Streak removed)                              */
   /* ---------------------------------------------------------- */
   function renderActivityView(root) {
     const data = state.data;
     const total = data.cards.length;
     const due = Storage.totalDueCount(data);
     const mastered = Storage.masteredCount(data);
-    const streak = Storage.streak(data);
 
     let totalReviews = 0, correctReviews = 0, leeches = 0;
     data.cards.forEach(c => { if (c.failCount >= 5) leeches++; });
@@ -1505,7 +1506,6 @@
           <div class="stat-tile"><div class="n">${total}</div><div class="l"><i class="fa-solid fa-clone"></i>Total cards</div></div>
           <div class="stat-tile warn"><div class="n">${due}</div><div class="l"><i class="fa-solid fa-bolt"></i>Due now</div></div>
           <div class="stat-tile success"><div class="n">${mastered}</div><div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div></div>
-          <div class="stat-tile"><div class="n">${streak}<small>d</small></div><div class="l"><i class="fa-solid fa-fire"></i>Streak</div></div>
           <div class="stat-tile"><div class="n">${retention}%</div><div class="l"><i class="fa-solid fa-brain"></i>Retention</div></div>
           <div class="stat-tile"><div class="n">${leeches}</div><div class="l"><i class="fa-solid fa-bug"></i>Leeches</div></div>
         </div>
@@ -1730,7 +1730,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Settings view (Cleaned up)                                  */
+  /* Settings view (Filled out)                                  */
   /* ---------------------------------------------------------- */
   function renderSettingsView(root) {
     const currentFamily = getFamily();
@@ -1744,7 +1744,6 @@
     `).join('');
 
     const ro = state.readOnly;
-    const lastSync = localStorage.getItem(SYNC_TIME_KEY);
 
     root.innerHTML = `
       ${viewHeaderHTML('Settings')}
@@ -1758,22 +1757,41 @@
 
         ${!ro ? `
         <section class="settings-section">
-          <div class="settings-section-title">Sync & Notifications</div>
+          <div class="settings-section-title">Data & Storage</div>
           <div class="settings-card">
-            <div class="drive-block">
-              <label class="drive-field">
-                <span class="drive-field-label">Sync Token</span>
-                <input type="password" id="syncTokenInput" value="${localStorage.getItem(SYNC_TOKEN_KEY) || DEFAULT_SYNC_TOKEN}" autocomplete="off">
-              </label>
-              <div class="drive-actions">
-                <button class="drive-btn primary" id="syncNowBtn"><i class="fa-solid fa-rotate"></i><span>Sync Now</span></button>
-                <button class="drive-btn" id="enablePushBtn"><i class="fa-solid fa-bell"></i><span>Enable Notifications</span></button>
+            <button class="settings-row" data-act="sync" onclick="syncToWorker()">
+              <i class="fa-solid fa-rotate"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">Force Sync</div>
+                <div class="settings-row-sub">Push and pull data from Cjay Cloud</div>
               </div>
-              <div class="drive-status" id="syncStatusBox">${lastSync ? 'Last synced ' + relativeTime(lastSync) : 'Not synced yet'}</div>
-            </div>
+              <i class="fa-solid fa-chevron-right settings-row-chevron"></i>
+            </button>
+            <button class="settings-row" data-act="backup" onclick="backupToFile()">
+              <i class="fa-solid fa-file-export"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">Export All Data</div>
+                <div class="settings-row-sub">Download a full JSON backup of every deck</div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-row-chevron"></i>
+            </button>
           </div>
         </section>
         ` : ''}
+
+        <section class="settings-section">
+          <div class="settings-section-title">Help & Feedback</div>
+          <div class="settings-card">
+            <a href="https://github.com/Only1Cjay/CjayCards" target="_blank" class="settings-row" style="text-decoration:none;">
+              <i class="fa-brands fa-github"></i>
+              <div class="settings-row-text">
+                <div class="settings-row-title">View on GitHub</div>
+                <div class="settings-row-sub">Report bugs or view the source code</div>
+              </div>
+              <i class="fa-solid fa-arrow-up-right-from-square settings-row-chevron" style="font-size:10px;"></i>
+            </a>
+          </div>
+        </section>
 
         <section class="settings-section">
           <div class="settings-section-title">About</div>
@@ -1823,17 +1841,6 @@
         root.querySelectorAll('.theme-btn-clean').forEach((c) => c.classList.toggle('active', c.dataset.familyId === id));
       });
     });
-
-    const syncTokenInput = root.querySelector('#syncTokenInput');
-    if (syncTokenInput) {
-      syncTokenInput.addEventListener('change', () => {
-        localStorage.setItem(SYNC_TOKEN_KEY, syncTokenInput.value.trim());
-        toast('Token saved', { type: 'success' });
-      });
-      root.querySelector('#syncNowBtn').addEventListener('click', () => syncToWorker());
-      root.querySelector('#enablePushBtn').addEventListener('click', togglePush);
-      updatePushUI();
-    }
 
     const resetRow = root.querySelector('#resetAllRow');
     if (resetRow) {
@@ -2239,7 +2246,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Tools sheet (Now with Google Drive)                         */
+  /* Tools sheet (Drive is now a button here)                    */
   /* ---------------------------------------------------------- */
   function openToolsSheet() {
     const ro = state.readOnly;
@@ -2249,32 +2256,13 @@
       <div class="sheet-handle"></div>
       <h3 class="sheet-title">Tools</h3>
       <div class="tools-grid">
-        <button class="tool-tile" data-act="backup" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-up"></i><span>Backup</span></button>
-        <button class="tool-tile" data-act="restore" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-down"></i><span>Restore</span></button>
+        <button class="tool-tile" data-act="backup" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-up"></i><span>Export JSON</span></button>
+        <button class="tool-tile" data-act="restore" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-down"></i><span>Import JSON</span></button>
         <button class="tool-tile" data-act="import-csv" ${ro ? 'disabled' : ''}><i class="fa-solid fa-file-import"></i><span>Import CSV</span></button>
-        <button class="tool-tile" data-act="export-csv" ${ro ? 'disabled' : ''}><i class="fa-solid fa-file-export"></i><span>Export CSV</span></button>
-        <button class="tool-tile" data-act="print"><i class="fa-solid fa-chart-line"></i><span>Print</span></button>
+        <button class="tool-tile" data-act="export-csv" ${ro ? 'disabled' : ''}><i class="fa-solid fa-file-export"></i><span>Export All CSV</span></button>
+        <button class="tool-tile" data-act="drive" ${ro ? 'disabled' : ''}><i class="fa-brands fa-google-drive"></i><span>Google Drive</span></button>
         <button class="tool-tile danger" data-act="clear-data" ${ro ? 'disabled' : ''}><i class="fa-solid fa-trash-can"></i><span>Clear Data</span></button>
       </div>
-      
-      ${!ro ? `
-      <div style="padding: 16px 20px; border-top: 1px solid var(--line);">
-        <div class="settings-section-title" style="padding-left:0; margin-bottom:12px;">Google Drive Backup</div>
-        <div class="drive-block" style="padding:0;">
-          <label class="drive-field">
-            <span class="drive-field-label">OAuth Client ID</span>
-            <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
-          </label>
-          <div class="drive-actions">
-            <button class="drive-btn" id="driveConnectBtn"><i class="fa-solid fa-plug"></i><span>Connect</span></button>
-            <button class="drive-btn primary" id="drivePushBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span>Push</span></button>
-            <button class="drive-btn" id="drivePullBtn"><i class="fa-solid fa-cloud-arrow-down"></i><span>Pull</span></button>
-          </div>
-          <div class="drive-status" id="driveStatus">Not connected</div>
-        </div>
-      </div>
-      ` : ''}
-
       <div class="sheet-actions">
         <button class="btn btn-ghost" data-act="cancel">Close</button>
       </div>
@@ -2290,17 +2278,50 @@
         setTimeout(() => handleMenuAction(act), 100);
       });
     });
+  }
 
+  /* ---------------------------------------------------------- */
+  /* Drive Modal                                                 */
+  /* ---------------------------------------------------------- */
+  function openDriveModal() {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Google Drive Backup</h3>
+      <p class="sheet-body">Manually back up and restore your data to Google Drive.</p>
+      
+      <div class="drive-block" style="padding: 0 20px 16px;">
+        <label class="drive-field">
+          <span class="drive-field-label">OAuth Client ID</span>
+          <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
+        </label>
+        <div class="drive-actions">
+          <button class="drive-btn" id="driveConnectBtn"><i class="fa-solid fa-plug"></i><span>Connect</span></button>
+          <button class="drive-btn primary" id="drivePushBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span>Push</span></button>
+          <button class="drive-btn" id="drivePullBtn"><i class="fa-solid fa-cloud-arrow-down"></i><span>Pull</span></button>
+        </div>
+        <div class="drive-status" id="driveStatus">Not connected</div>
+      </div>
+
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Close</button>
+      </div>
+    `;
+    openModal(sheet);
+    
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    
     const driveInput = sheet.querySelector('#driveClientId');
-    if (driveInput) {
-      driveInput.value = getStoredClientId();
-      driveInput.addEventListener('blur', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
-      driveInput.addEventListener('change', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
-      sheet.querySelector('#driveConnectBtn').addEventListener('click', driveConnect);
-      sheet.querySelector('#drivePushBtn').addEventListener('click', drivePush);
-      sheet.querySelector('#drivePullBtn').addEventListener('click', drivePull);
-      updateDriveStatus();
-    }
+    driveInput.value = getStoredClientId();
+    driveInput.addEventListener('blur', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+    driveInput.addEventListener('change', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+
+    sheet.querySelector('#driveConnectBtn').addEventListener('click', driveConnect);
+    sheet.querySelector('#drivePushBtn').addEventListener('click', drivePush);
+    sheet.querySelector('#drivePullBtn').addEventListener('click', drivePull);
+    
+    updateDriveStatus();
   }
 
   /* ---------------------------------------------------------- */
@@ -2372,9 +2393,17 @@
     });
   }
 
-  function exportCSV() {
+  function exportCSV(deckId = null) {
+    let cardsToExport = state.data.cards;
+    let filename = 'cjaycards-all';
+    if (deckId) {
+      cardsToExport = state.data.cards.filter(c => c.deckId === deckId);
+      const deck = Storage.getDeck(deckId);
+      if (deck) filename = `cjaycards-${deck.name.replace(/[^a-z0-9]/gi, '_')}`;
+    }
+    
     const rows = [['Deck', 'Type', 'Front/Cloze', 'Back', 'Tags', 'DueDate', 'EasyStreak', 'FailCount', 'Mastered']];
-    state.data.cards.forEach((c) => {
+    cardsToExport.forEach((c) => {
       const deck = Storage.getDeck(c.deckId);
       rows.push([
         deck?.name || '',
@@ -2393,7 +2422,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cjaycards-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast('CSV exported', { type: 'success', icon: 'fa-file-export' });
