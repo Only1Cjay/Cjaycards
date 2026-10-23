@@ -1857,4 +1857,621 @@
       <p class="sheet-body" style="padding: 0 20px 20px;">Days until a card resurfaces after each rating.</p>
       <div style="padding: 0 20px 8px;">
         <div class="interval-grid">
-          ${RATING_LABELS.map
+          ${RATING_LABELS.map((label, i) => `
+            <div class="interval-cell">
+              <label>${label}</label>
+              <input type="number" min="0" step="0.01" value="${deck.intervals[i]}" data-idx="${i}" inputmode="decimal">
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" data-act="done">Done</button>
+      </div>
+    `;
+    openModal(sheet);
+
+    sheet.querySelectorAll('input').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const idx = Number(inp.dataset.idx);
+        const v = Math.max(0, parseFloat(inp.value) || 0.01);
+        const intervals = [...deck.intervals];
+        intervals[idx] = v;
+        Storage.updateDeck(deck.id, { intervals });
+        state.data = Storage.getData();
+        inp.value = v;
+      });
+    });
+
+    sheet.querySelector('[data-act="done"]').addEventListener('click', closeModal);
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Study by Tag sheet                                          */
+  /* ---------------------------------------------------------- */
+  function openStudyByTagSheet(deckId) {
+    const cards = Storage.cardsOf(deckId);
+    const tags = new Set();
+    cards.forEach(c => (c.tags || []).forEach(t => tags.add(t)));
+    const sorted = Array.from(tags).sort();
+    
+    if (!sorted.length) {
+      toast('No tags in this deck', { type: 'info', icon: 'fa-circle-info' });
+      return;
+    }
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Study by Tag</h3>
+      <p class="sheet-body">Pick a tag to study only those cards.</p>
+      <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 8px;">
+        ${sorted.map(t => `<button class="btn btn-ghost" data-tag="${escapeHTML(t)}">#${escapeHTML(t)}</button>`).join('')}
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelectorAll('[data-tag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        closeModal();
+        startStudy({ deckId, mode: 'tag', tag: btn.dataset.tag });
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Tools sheet                                                 */
+  /* ---------------------------------------------------------- */
+  function openToolsSheet() {
+    const ro = state.readOnly;
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Tools</h3>
+      <div class="tools-grid">
+        <button class="tool-tile" data-act="backup" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-up"></i><span>Backup</span></button>
+        <button class="tool-tile" data-act="restore" ${ro ? 'disabled' : ''}><i class="fa-solid fa-cloud-arrow-down"></i><span>Restore</span></button>
+        <button class="tool-tile" data-act="import-csv" ${ro ? 'disabled' : ''}><i class="fa-solid fa-file-import"></i><span>Import CSV</span></button>
+        <button class="tool-tile" data-act="export-csv" ${ro ? 'disabled' : ''}><i class="fa-solid fa-file-export"></i><span>Export CSV</span></button>
+        <button class="tool-tile" data-act="print"><i class="fa-solid fa-chart-line"></i><span>Print</span></button>
+        <button class="tool-tile danger" data-act="clear-data" ${ro ? 'disabled' : ''}><i class="fa-solid fa-trash-can"></i><span>Clear Data</span></button>
+      </div>
+    `;
+    openModal(sheet);
+
+    sheet.querySelectorAll('.tool-tile').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        const act = btn.dataset.act;
+        closeModal();
+        setTimeout(() => handleMenuAction(act), 100);
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Backup / Restore / CSV                                      */
+  /* ---------------------------------------------------------- */
+  function backupToFile() {
+    const payload = {
+      app: 'cjaycards',
+      schema: 1,
+      exportedAt: new Date().toISOString(),
+      data: Storage.getData()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cjaycards-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Backup saved', { type: 'success', icon: 'fa-cloud-arrow-up' });
+  }
+
+  function restoreFromFile() {
+    pickFile('.json,application/json', async (file) => {
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const incoming = parsed.data || parsed;
+        if (!incoming || !Array.isArray(incoming.decks)) throw new Error('Invalid backup');
+        showRestoreChoice(incoming);
+      } catch (err) {
+        toast(`Restore failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
+      }
+    });
+  }
+
+  function showRestoreChoice(incoming) {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Restore backup</h3>
+      <p class="sheet-body">Backup contains <strong>${incoming.decks.length}</strong> deck${incoming.decks.length === 1 ? '' : 's'} and <strong>${(incoming.cards || []).length}</strong> card${(incoming.cards || []).length === 1 ? '' : 's'}.</p>
+      <div class="sheet-actions" style="flex-direction:column;">
+        <button class="btn btn-primary" data-act="replace">Replace everything</button>
+        <button class="btn btn-ghost" data-act="merge">Merge with current</button>
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="replace"]').addEventListener('click', () => {
+      Storage.setData(incoming);
+      closeModal();
+      refresh();
+      toast('Backup restored', { type: 'success', icon: 'fa-cloud-arrow-down' });
+    });
+    sheet.querySelector('[data-act="merge"]').addEventListener('click', () => {
+      const current = Storage.getData();
+      const deckIds = new Set(current.decks.map((d) => d.id));
+      const cardIds = new Set(current.cards.map((c) => c.id));
+      let addedDecks = 0, addedCards = 0;
+      (incoming.decks || []).forEach((d) => {
+        if (!deckIds.has(d.id)) { current.decks.push(d); addedDecks++; }
+      });
+      (incoming.cards || []).forEach((c) => {
+        if (!cardIds.has(c.id)) { current.cards.push(c); addedCards++; }
+      });
+      Storage.setData(current);
+      closeModal();
+      refresh();
+      toast(`Merged: ${addedDecks} decks, ${addedCards} cards`, { type: 'success', icon: 'fa-cloud-arrow-down' });
+    });
+  }
+
+  function exportCSV() {
+    const rows = [['Deck', 'Type', 'Front/Cloze', 'Back', 'Tags', 'DueDate', 'EasyStreak', 'FailCount', 'Mastered']];
+    state.data.cards.forEach((c) => {
+      const deck = Storage.getDeck(c.deckId);
+      rows.push([
+        deck?.name || '',
+        c.type || 'basic',
+        c.type === 'cloze' ? c.clozeText : c.front,
+        c.back,
+        (c.tags || []).join(';'),
+        c.dueDate || '',
+        c.easyStreak || 0,
+        c.failCount || 0,
+        Storage.isMastered(c) ? 'yes' : 'no'
+      ]);
+    });
+    const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cjaycards-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV exported', { type: 'success', icon: 'fa-file-export' });
+  }
+
+  function importCSVFromFile() {
+    pickFile('.csv,text/csv', async (file) => {
+      try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        if (rows.length < 2) throw new Error('Empty CSV');
+
+        const header = rows[0].map((h) => h.trim().toLowerCase());
+        const idx = (n) => header.indexOf(n);
+        const iDeck = idx('deck');
+        const iType = idx('type');
+        const iFront = idx('front') !== -1 ? idx('front') : idx('front/cloze');
+        const iBack = idx('back');
+        const iTags = idx('tags');
+        if (iFront === -1 || iBack === -1) throw new Error('Missing front/back columns');
+
+        const current = Storage.getData();
+        const deckMap = new Map();
+        current.decks.forEach((d) => deckMap.set(d.name.toLowerCase(), d.id));
+
+        let added = 0;
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          const type = iType !== -1 ? (r[iType] || 'basic').toLowerCase() : 'basic';
+          const frontOrCloze = (r[iFront] || '').trim();
+          const back = (r[iBack] || '').trim();
+          if (!frontOrCloze) continue;
+
+          const deckName = iDeck !== -1 ? (r[iDeck] || '').trim() : 'Imported';
+          let deckId = deckMap.get(deckName.toLowerCase());
+          if (!deckId) {
+            const deck = Storage.addDeck({ name: deckName || 'Imported', color: null });
+            deckId = deck.id;
+            deckMap.set(deckName.toLowerCase(), deckId);
+            current.decks.push(deck);
+          }
+
+          const tags = iTags !== -1 && r[iTags] ? r[iTags].split(';').map((t) => t.trim()).filter(Boolean) : [];
+          
+          if (type === 'cloze') {
+            Storage.addCard({ deckId, type: 'cloze', clozeText: frontOrCloze, tags });
+          } else {
+            Storage.addCard({ deckId, type, front: frontOrCloze, back, tags });
+          }
+          added++;
+        }
+        refresh();
+        toast(`Imported ${added} card${added === 1 ? '' : 's'}`, { type: 'success', icon: 'fa-file-import' });
+      } catch (err) {
+        toast(`Import failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
+      }
+    });
+  }
+
+  function pickFile(accept, onPick) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (file) onPick(file);
+      input.remove();
+    });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ',') { row.push(cur); cur = ''; }
+        else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (c !== '\r') cur += c;
+      }
+    }
+    if (cur || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter((r) => r.some((c) => c.length));
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Drive sync                                                  */
+  /* ---------------------------------------------------------- */
+  const DRIVE = {
+    clientIdKey: 'cjay_gdrive_client_id',
+    lastSyncKey: 'cjaycards_last_sync',
+    folderName: 'CjayCards',
+    fileName: 'cjaycards.json',
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    token: null,
+    tokenClient: null,
+    gapiReady: false,
+    folderId: null,
+    initPromise: null
+  };
+
+  function getStoredClientId() { return localStorage.getItem(DRIVE.clientIdKey) || ''; }
+  function setStoredClientId(id) {
+    if (id) localStorage.setItem(DRIVE.clientIdKey, id.trim());
+    else localStorage.removeItem(DRIVE.clientIdKey);
+    DRIVE.tokenClient = null;
+    DRIVE.gapiReady = false;
+    DRIVE.folderId = null;
+    DRIVE.token = null;
+    DRIVE.initPromise = null;
+  }
+  function getLastSync() { return localStorage.getItem(DRIVE.lastSyncKey) || ''; }
+  function setLastSync(iso) {
+    localStorage.setItem(DRIVE.lastSyncKey, iso);
+    Storage.updateSettings({ lastSync: iso });
+  }
+
+  function waitForGlobals(timeoutMs = 12000) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const check = () => {
+        if (typeof gapi !== 'undefined' && typeof google !== 'undefined' && google.accounts?.oauth2) resolve();
+        else if (Date.now() - start > timeoutMs) reject(new Error('Google libraries failed to load'));
+        else setTimeout(check, 150);
+      };
+      check();
+    });
+  }
+
+  function initDrive() {
+    if (DRIVE.initPromise) return DRIVE.initPromise;
+    DRIVE.initPromise = (async () => {
+      const clientId = getStoredClientId();
+      if (!clientId) throw new Error('No client ID');
+      await waitForGlobals();
+      if (!DRIVE.gapiReady) {
+        await new Promise((res, rej) => gapi.load('client', { callback: res, onerror: () => rej(new Error('gapi.load failed')) }));
+        await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+        DRIVE.gapiReady = true;
+      }
+      if (!DRIVE.tokenClient) {
+        DRIVE.tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: DRIVE.scope,
+          callback: () => {}
+        });
+      }
+      return true;
+    })();
+    DRIVE.initPromise.catch(() => { DRIVE.initPromise = null; });
+    return DRIVE.initPromise;
+  }
+
+  function ensureAccessToken({ forcePrompt = false } = {}) {
+    return new Promise((resolve, reject) => {
+      if (DRIVE.token && !forcePrompt) return resolve(DRIVE.token);
+      if (!DRIVE.tokenClient) return reject(new Error('Drive not initialised'));
+      DRIVE.tokenClient.callback = (resp) => {
+        if (resp.error) return reject(new Error(resp.error));
+        DRIVE.token = resp.access_token;
+        gapi.client.setToken({ access_token: resp.access_token });
+        resolve(resp.access_token);
+      };
+      DRIVE.tokenClient.requestAccessToken({ prompt: forcePrompt ? 'consent' : '' });
+    });
+  }
+
+  async function getOrCreateFolder() {
+    if (DRIVE.folderId) return DRIVE.folderId;
+    const q = `mimeType='application/vnd.google-apps.folder' and name='${DRIVE.folderName}' and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: 'files(id,name)', spaces: 'drive' });
+    const files = res.result.files || [];
+    if (files.length) { DRIVE.folderId = files[0].id; return DRIVE.folderId; }
+    const create = await gapi.client.drive.files.create({
+      resource: { name: DRIVE.folderName, mimeType: 'application/vnd.google-apps.folder' },
+      fields: 'id'
+    });
+    DRIVE.folderId = create.result.id;
+    return DRIVE.folderId;
+  }
+
+  async function findDriveFile(folderId) {
+    const q = `name='${DRIVE.fileName}' and '${folderId}' in parents and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: 'files(id,name,modifiedTime)', spaces: 'drive' });
+    return (res.result.files || [])[0] || null;
+  }
+
+  async function driveConnect() {
+    try {
+      await initDrive();
+      await ensureAccessToken({ forcePrompt: true });
+      toast('Connected to Drive', { type: 'success', icon: 'fa-plug' });
+      updateDriveStatus();
+    } catch (err) {
+      toast(`Connect failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
+    }
+  }
+
+  async function drivePush() {
+    try {
+      await initDrive();
+      await ensureAccessToken();
+      const folderId = await getOrCreateFolder();
+      const file = await findDriveFile(folderId);
+      const payload = JSON.stringify({
+        app: 'cjaycards', schema: 1, exportedAt: new Date().toISOString(), data: Storage.getData()
+      }, null, 2);
+
+      const boundary = '-------cjaycards' + Date.now();
+      const delimiter = '\r\n--' + boundary + '\r\n';
+      const closeDelim = '\r\n--' + boundary + '--';
+      const metadata = file ? { name: DRIVE.fileName } : { name: DRIVE.fileName, parents: [folderId] };
+      const body = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata)
+        + delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + payload + closeDelim;
+
+      await gapi.client.request({
+        path: file ? `/upload/drive/v3/files/${file.id}` : '/upload/drive/v3/files',
+        method: file ? 'PATCH' : 'POST',
+        params: { uploadType: 'multipart' },
+        headers: { 'Content-Type': `multipart/related; boundary="${boundary}"` },
+        body
+      });
+
+      setLastSync(new Date().toISOString());
+      updateDriveStatus();
+      toast('Pushed to Drive', { type: 'success', icon: 'fa-cloud-arrow-up' });
+    } catch (err) {
+      toast(`Push failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
+    }
+  }
+
+  async function drivePull() {
+    try {
+      await initDrive();
+      await ensureAccessToken();
+      const folderId = await getOrCreateFolder();
+      const file = await findDriveFile(folderId);
+      if (!file) { toast('No Drive backup found', { type: 'info', icon: 'fa-circle-info' }); return; }
+
+      const res = await gapi.client.drive.files.get({ fileId: file.id, alt: 'media' });
+      const raw = typeof res.body === 'string' ? res.body : JSON.stringify(res.result);
+      const parsed = JSON.parse(raw);
+      const incoming = parsed.data || parsed;
+      if (!incoming || !Array.isArray(incoming.decks)) throw new Error('Invalid backup on Drive');
+      showDrivePullChoice(incoming, file.modifiedTime);
+    } catch (err) {
+      toast(`Pull failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
+    }
+  }
+
+  function showDrivePullChoice(incoming, modifiedTime) {
+    const modifiedLabel = modifiedTime ? new Date(modifiedTime).toLocaleString() : 'unknown';
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Pull from Drive</h3>
+      <p class="sheet-body">Cloud backup: <strong>${incoming.decks.length}</strong> decks · <strong>${(incoming.cards || []).length}</strong> cards (${escapeHTML(modifiedLabel)}).</p>
+      <div class="sheet-actions" style="flex-direction:column;">
+        <button class="btn btn-primary" data-act="replace">Replace everything</button>
+        <button class="btn btn-ghost" data-act="merge">Merge with current</button>
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="replace"]').addEventListener('click', () => {
+      Storage.setData(incoming);
+      setLastSync(new Date().toISOString());
+      closeModal(); refresh(); updateDriveStatus();
+      toast('Pulled from Drive', { type: 'success', icon: 'fa-cloud-arrow-down' });
+    });
+    sheet.querySelector('[data-act="merge"]').addEventListener('click', () => {
+      const current = Storage.getData();
+      const deckIds = new Set(current.decks.map((d) => d.id));
+      const cardIds = new Set(current.cards.map((c) => c.id));
+      let addedDecks = 0, addedCards = 0;
+      (incoming.decks || []).forEach((d) => { if (!deckIds.has(d.id)) { current.decks.push(d); addedDecks++; } });
+      (incoming.cards || []).forEach((c) => { if (!cardIds.has(c.id)) { current.cards.push(c); addedCards++; } });
+      Storage.setData(current);
+      setLastSync(new Date().toISOString());
+      closeModal(); refresh(); updateDriveStatus();
+      toast(`Merged: ${addedDecks} decks, ${addedCards} cards`, { type: 'success', icon: 'fa-cloud-arrow-down' });
+    });
+  }
+
+  function updateDriveStatus() {
+    const el = document.getElementById('driveStatus');
+    if (!el) return;
+    const clientId = getStoredClientId();
+    const lastSync = getLastSync();
+    if (!clientId) el.textContent = 'Paste your Client ID to enable sync';
+    else if (!lastSync) el.textContent = 'Ready to sync';
+    else el.textContent = `Last synced ${relativeTime(lastSync)}`;
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Offline banner                                              */
+  /* ---------------------------------------------------------- */
+  const offlineBanner = $('#offlineBanner');
+  function updateOnlineStatus() { offlineBanner.classList.toggle('show', !navigator.onLine); }
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+
+  /* ---------------------------------------------------------- */
+  /* Install prompt                                              */
+  /* ---------------------------------------------------------- */
+  const installBanner = $('#installBanner');
+  const installAccept = $('#installAccept');
+  const installDismiss = $('#installDismiss');
+  let deferredPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (localStorage.getItem(LS.installDismissed) !== '1') installBanner.hidden = false;
+  });
+
+  installAccept.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBanner.hidden = true;
+    toast(outcome === 'accepted' ? 'Installing…' : 'Install dismissed', {
+      type: outcome === 'accepted' ? 'success' : 'info', icon: 'fa-circle-down'
+    });
+  });
+
+  installDismiss.addEventListener('click', () => {
+    installBanner.hidden = true;
+    localStorage.setItem(LS.installDismissed, '1');
+  });
+
+  /* ---------------------------------------------------------- */
+  /* Service worker                                              */
+  /* ---------------------------------------------------------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast(reg);
+          });
+        });
+        setInterval(() => reg.update(), 30 * 60 * 1000);
+      }).catch((err) => console.warn('SW registration failed:', err));
+    });
+  }
+
+  function showUpdateToast(reg) {
+    const menuBadge = $('#menuBadge');
+    const el = toast('New version available', {
+      icon: 'fa-arrows-rotate', type: 'info', persist: true,
+      action: {
+        label: 'Refresh',
+        onClick: () => { reg.waiting?.postMessage({ type: 'SKIP_WAITING' }); setTimeout(() => window.location.reload(), 200); }
+      }
+    });
+    setTimeout(() => { if (el && !el._dismissed) { dismissToast(el); menuBadge.hidden = false; } }, 30000);
+    menuBadge.addEventListener('click', () => { menuBadge.hidden = true; showUpdateToast(reg); }, { once: true });
+  }
+
+  let refreshing = false;
+  navigator.serviceWorker?.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
+  /* ---------------------------------------------------------- */
+  /* Theme toggle (header)                                       */
+  /* ---------------------------------------------------------- */
+  themeToggleSetup();
+  function themeToggleSetup() {
+    $('#themeToggle').addEventListener('click', () => {
+      const next = getMode() === 'dark' ? 'light' : 'dark';
+      applyTheme(getFamily(), next);
+      persistTheme(getFamily(), next);
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Init                                                        */
+  /* ---------------------------------------------------------- */
+  function init() {
+    parseUrlFlags();
+
+    if (state.demoMode) {
+      state.data = Storage.getDummyData();
+      const badge = document.createElement('span');
+      badge.className = 'view-badge';
+      badge.textContent = 'View Only';
+      badge.style.cssText = 'font-size:10px;font-weight:700;color:var(--muted);background:var(--card-2);padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;';
+      $('.header-right').insertBefore(badge, $('.header-right').firstChild);
+    } else {
+      state.data = Storage.getData();
+    }
+
+    const s = state.data.settings || {};
+    applyTheme(s.family || localStorage.getItem(LS.family) || 'slate', s.mode || localStorage.getItem(LS.mode) || 'light');
+
+    refresh();
+  }
+
+  init();
+
+  window.CjayCards = {
+    toast, dismissToast, openModal, closeModal,
+    openView, closeView, refresh,
+    getState: () => state
+  };
+})();
