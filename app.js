@@ -8,7 +8,8 @@
   const LS = {
     family: 'cjaycards.family',
     mode: 'cjaycards.mode',
-    installDismissed: 'cjaycards.installDismissed'
+    installDismissed: 'cjaycards.installDismissed',
+    recentDecks: 'cjaycards.recent_decks'
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -21,7 +22,9 @@
     tab: 'decks',
     sortMode: 'due',
     currentDeckId: null,
-    study: null
+    study: null,
+    bulkMode: false,
+    selectedCards: new Set()
   };
 
   const RATING_LABELS = ['Again', 'Hard', 'Good', 'Easy'];
@@ -86,6 +89,15 @@
   /* ---------------------------------------------------------- */
   /* SYNC ENGINE                                                 */
   /* ---------------------------------------------------------- */
+  function updateSyncIcon(status) {
+    const icon = $('#syncIcon');
+    if (!icon) return;
+    icon.className = 'fa-solid sync-icon ' + status;
+    if (status === 'synced') icon.className = 'fa-solid fa-cloud sync-icon synced';
+    if (status === 'syncing') icon.className = 'fa-solid fa-arrows-rotate fa-spin sync-icon syncing';
+    if (status === 'offline' || status === 'error') icon.className = 'fa-solid fa-cloud-slash sync-icon offline';
+  }
+
   function scheduleSync() {
     if (isSyncing || state.readOnly) return;
     clearTimeout(syncTimeout);
@@ -97,7 +109,14 @@
     const token = localStorage.getItem(SYNC_TOKEN_KEY) || DEFAULT_SYNC_TOKEN;
     if (!token) return;
 
+    if (!navigator.onLine) {
+      updateSyncIcon('offline');
+      return;
+    }
+
     isSyncing = true;
+    updateSyncIcon('syncing');
+    
     const statusEl = document.getElementById('syncStatusBox');
     if (statusEl) { statusEl.textContent = 'Syncing...'; statusEl.style.color = 'var(--accent)'; }
 
@@ -119,16 +138,14 @@
       const result = await res.json();
       if (!result.ok) throw new Error(result.error || 'Sync failed');
 
-      // Worker returned merged data. Replace local.
       const newData = Storage.getData();
       newData.decks = result.collections.decks;
       newData.cards = result.collections.cards;
       newData.deletedIds = result.deletedIds;
       
-      Storage.setData(newData); // save without triggering loop
+      Storage.setData(newData); 
       state.data = Storage.getData();
       
-      // Apply theme changes from other devices
       if (result.settings) {
         applyTheme(result.settings.family || 'slate', result.settings.mode || 'light');
       }
@@ -136,6 +153,7 @@
       localStorage.setItem(SYNC_TIME_KEY, new Date().toISOString());
       
       if (statusEl) { statusEl.textContent = 'Synced · ' + newData.cards.length + ' cards'; statusEl.style.color = 'var(--easy)'; }
+      updateSyncIcon('synced');
       
       refresh();
       if (!$('#viewRoot').hidden && state.currentDeckId) {
@@ -145,6 +163,7 @@
     } catch (err) {
       console.error('[sync]', err);
       if (statusEl) { statusEl.textContent = 'Sync failed'; statusEl.style.color = 'var(--again)'; }
+      updateSyncIcon('error');
     } finally {
       isSyncing = false;
     }
@@ -154,6 +173,8 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') syncToWorker();
   });
+  window.addEventListener('online', () => updateSyncIcon('synced'));
+  window.addEventListener('offline', () => updateSyncIcon('offline'));
 
   /* ---------------------------------------------------------- */
   /* PUSH NOTIFICATIONS                                          */
@@ -176,7 +197,6 @@
   async function togglePush() {
     const enabled = localStorage.getItem(PUSH_FLAG_KEY) === '1';
     if (enabled) {
-      // Disable
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
@@ -193,7 +213,6 @@
         toast('Notifications disabled', { type: 'info' });
       } catch (err) { toast('Failed to disable push', { type: 'error' }); }
     } else {
-      // Enable
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         toast('Push not supported', { type: 'warn' }); return;
       }
@@ -261,7 +280,6 @@
       closeModal();
     }
 
-    // Study Shortcuts
     if (state.study) {
       if (e.code === 'Space') {
         e.preventDefault();
@@ -279,7 +297,6 @@
       }
     }
 
-    // Deck Shortcuts
     if (e.key.toLowerCase() === 'n' && !$('#viewRoot').hidden && state.currentDeckId && !state.readOnly) {
       openCardForm({});
     }
@@ -310,7 +327,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Toast                                                       */
+  /* Toast & Confetti                                            */
   /* ---------------------------------------------------------- */
   const toastStack = $('#toastStack');
   const MAX_TOASTS = 3;
@@ -352,6 +369,19 @@
     clearTimeout(el._timer);
     el.classList.add('leaving');
     setTimeout(() => el.remove(), 240);
+  }
+
+  function fireConfetti() {
+    for(let i=0; i<30; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.backgroundColor = ['#E5484D', '#D97706', '#3D9BC9', '#10A96B', '#8B5CF6'][Math.floor(Math.random()*5)];
+      c.style.animationDelay = Math.random() * 0.5 + 's';
+      c.style.animationDuration = (Math.random() * 1.5 + 1.5) + 's';
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 3000);
+    }
   }
 
   /* ---------------------------------------------------------- */
@@ -402,10 +432,7 @@
   }
 
   function intervalDisplay(days) {
-    if (days < 1) {
-      const h = Math.round(days * 24);
-      return `${h}h`;
-    }
+    if (days < 1) return `${Math.round(days * 24)}h`;
     if (days < 30) return `${Math.round(days)}d`;
     return `${Math.round(days / 30)}mo`;
   }
@@ -427,6 +454,17 @@
     return 'future';
   }
 
+  function generateTags(text) {
+    if (!text) return [];
+    const words = text.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+    const stops = ['what', 'this', 'that', 'with', 'from', 'have', 'does', 'your', 'which', 'when', 'where', 'there', 'their', 'about', 'they', 'will', 'would', 'could', 'should'];
+    const filtered = words.filter(w => !stops.includes(w));
+    if (!filtered.length) return [];
+    const counts = {};
+    filtered.forEach(w => counts[w] = (counts[w] || 0) + 1);
+    return Object.keys(counts).sort((a,b) => counts[b] - counts[a]).slice(0, 2);
+  }
+
   /* ---------------------------------------------------------- */
   /* View system                                                 */
   /* ---------------------------------------------------------- */
@@ -437,6 +475,13 @@
     viewRoot.hidden = false;
     document.body.style.overflow = 'hidden';
     document.body.classList.add('view-open');
+    
+    if (name === 'deck') {
+      const recent = JSON.parse(localStorage.getItem(LS.recentDecks) || '[]');
+      const filtered = recent.filter(id => id !== payload.deckId);
+      filtered.unshift(payload.deckId);
+      localStorage.setItem(LS.recentDecks, JSON.stringify(filtered.slice(0, 3)));
+    }
 
     const el = document.createElement('div');
     el.className = 'view';
@@ -457,6 +502,8 @@
     document.body.classList.remove('view-open');
     state.currentDeckId = null;
     state.study = null;
+    state.bulkMode = false;
+    state.selectedCards.clear();
     refresh();
   }
 
@@ -473,7 +520,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* FAB                                                         */
+  /* FAB & Tabs                                                  */
   /* ---------------------------------------------------------- */
   const fabBtn = $('#fabBtn');
   const fabMenu = $('#fabMenu');
@@ -509,9 +556,6 @@
     });
   });
 
-  /* ---------------------------------------------------------- */
-  /* Tabs                                                        */
-  /* ---------------------------------------------------------- */
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const t = tab.dataset.tab;
@@ -536,19 +580,14 @@
   /* ---------------------------------------------------------- */
   function refresh() {
     state.data = state.readOnly ? state.data : Storage.getData();
-    renderDueChip();
+    const count = Storage.totalDueCount(state.data);
+    $('#dueChipCount').textContent = count;
+    $('#dueChip').classList.toggle('zero', count === 0);
     renderTab();
   }
 
-  function renderDueChip() {
-    const chip = $('#dueChip');
-    const count = Storage.totalDueCount(state.data);
-    $('#dueChipCount').textContent = count;
-    chip.classList.toggle('zero', count === 0);
-  }
-
   /* ---------------------------------------------------------- */
-  /* Decks tab                                                   */
+  /* Decks tab (with Recent Decks)                               */
   /* ---------------------------------------------------------- */
   function renderDecks() {
     const screen = $('#screen-decks');
@@ -560,10 +599,28 @@
     }
 
     screen.innerHTML = '';
+    
+    const recentIds = JSON.parse(localStorage.getItem(LS.recentDecks) || '[]');
+    const recentDecks = recentIds.map(id => decks.find(d => d.id === id)).filter(Boolean);
+
+    if (recentDecks.length > 0) {
+      const recentSection = document.createElement('div');
+      recentSection.innerHTML = `<div class="section-title">Recently Studied</div>`;
+      const recentList = document.createElement('div');
+      recentList.className = 'deck-list';
+      recentList.style.marginBottom = '24px';
+      recentDecks.forEach((deck) => recentList.appendChild(renderDeckCard(deck)));
+      screen.appendChild(recentSection);
+      screen.appendChild(recentList);
+      screen.appendChild(document.createElement('div')).innerHTML = `<div class="section-title">All Decks</div>`;
+    }
+
     const list = document.createElement('div');
     list.className = 'deck-list';
-
-    decks.forEach((deck) => list.appendChild(renderDeckCard(deck)));
+    decks.forEach((deck) => {
+      if (recentDecks.length > 0 && recentDecks.includes(deck)) return; // Skip duplicates in "All Decks"
+      list.appendChild(renderDeckCard(deck));
+    });
     screen.appendChild(list);
   }
 
@@ -634,7 +691,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 85; // <--- FIXED z-index so it shows above viewRoot
+    menu.style.zIndex = 85;
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
@@ -754,7 +811,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Deck detail view                                            */
+  /* Deck detail view (with Bulk Mode)                           */
   /* ---------------------------------------------------------- */
   function renderDeckDetail(root, deckId) {
     const deck = Storage.getDeck(deckId);
@@ -766,6 +823,9 @@
     const mastered = cards.filter(Storage.isMastered).length;
 
     const menuHTML = `
+      <button class="icon-btn" data-act="deck-select" aria-label="Select cards" title="Select cards" style="color:${state.bulkMode ? 'var(--accent)' : ''}">
+        <i class="fa-solid fa-check-square"></i>
+      </button>
       <button class="icon-btn" data-act="deck-intervals" aria-label="Deck intervals" title="Intervals">
         <i class="fa-solid fa-sliders"></i>
       </button>
@@ -792,6 +852,12 @@
         <button class="sort-chip" data-sort="newest">Newest</button>
       </div>
       <div class="view-body" id="deckCardsBody"></div>
+      <div class="bulk-bar" id="bulkBar">
+        <span class="bulk-bar-count" id="bulkCount">0 selected</span>
+        <button class="btn btn-ghost" id="bulkMoveBtn"><i class="fa-solid fa-folder-tree"></i> Move</button>
+        <button class="btn btn-ghost" id="bulkBuryBtn"><i class="fa-solid fa-bed"></i> Bury</button>
+        <button class="btn btn-danger" id="bulkDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete</button>
+      </div>
     `;
 
     root.querySelector('[data-act="back"]').addEventListener('click', closeView);
@@ -799,6 +865,37 @@
       if (state.readOnly || !due) return;
       closeView();
       setTimeout(() => startStudy({ deckId }), 100);
+    });
+
+    root.querySelector('[data-act="deck-select"]').addEventListener('click', () => {
+      state.bulkMode = !state.bulkMode;
+      state.selectedCards.clear();
+      root.querySelector('[data-act="deck-select"]').style.color = state.bulkMode ? 'var(--accent)' : '';
+      root.querySelector('#bulkBar').classList.toggle('show', state.bulkMode);
+      updateBulkBar(root);
+      renderDeckCards(root.querySelector('#deckCardsBody'), cards);
+    });
+
+    // Bulk Actions Logic
+    function updateBulkBar(r) {
+      r.querySelector('#bulkCount').textContent = `${state.selectedCards.size} selected`;
+    }
+    root.querySelector('#bulkMoveBtn').addEventListener('click', () => {
+      if (!state.selectedCards.size) return;
+      openMoveBulkSheet(Array.from(state.selectedCards));
+    });
+    root.querySelector('#bulkBuryBtn').addEventListener('click', () => {
+      if (!state.selectedCards.size) return;
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(4,0,0,0);
+      state.selectedCards.forEach(id => Storage.updateCard(id, { buriedUntil: tomorrow.toISOString() }));
+      toast('Buried cards', { type: 'success' });
+      state.selectedCards.clear(); updateBulkBar(root);
+      renderDeckCards(root.querySelector('#deckCardsBody'), cards);
+      refresh();
+    });
+    root.querySelector('#bulkDeleteBtn').addEventListener('click', () => {
+      if (!state.selectedCards.size) return;
+      openBulkDeleteConfirm(Array.from(state.selectedCards));
     });
 
     root.querySelector('[data-act="deck-menu"]').addEventListener('click', (e) => {
@@ -844,11 +941,17 @@
 
     container.innerHTML = '';
     sorted.forEach((card) => container.appendChild(renderCardRow(card)));
+    
+    const bulkBar = container.parentElement.querySelector('#bulkBar');
+    if (bulkBar) {
+      container.parentElement.querySelector('#bulkCount').textContent = `${state.selectedCards.size} selected`;
+    }
   }
 
   function renderCardRow(card) {
     const row = document.createElement('button');
     row.className = 'card-row';
+    if (state.bulkMode && state.selectedCards.has(card.id)) row.classList.add('selected');
 
     const displayFront = card.type === 'cloze' 
       ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') 
@@ -860,18 +963,41 @@
     if (card.type === 'reversed') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Reversed</span>';
     if (card.failCount >= 5) typeLabel += '<span class="tag" style="background:var(--again); color:#fff;">Leech</span>';
 
+    const tagsHTML = (card.tags || []).map(t => `<span class="tag tag-clickable" data-tag="${escapeHTML(t)}">#${escapeHTML(t)}</span>`).join(' ');
+
     const statusClass = dueLabelClass(card);
     const statusText = dueLabel(card);
 
     row.innerHTML = `
+      ${state.bulkMode ? `<div class="checkbox-indicator">${state.selectedCards.has(card.id) ? '<i class="fa-solid fa-check" style="font-size:10px;"></i>' : ''}</div>` : ''}
       <div class="card-row-body">
         <div class="card-row-front">${escapeHTML(displayFront || 'Empty card')}</div>
-        ${typeLabel ? `<div class="card-row-meta">${typeLabel}</div>` : ''}
+        ${(typeLabel || tagsHTML) ? `<div class="card-row-meta">${typeLabel} ${tagsHTML}</div>` : ''}
       </div>
       <span class="card-row-status ${statusClass}">${escapeHTML(statusText)}</span>
     `;
 
-    row.addEventListener('click', () => {
+    row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tag-clickable')) {
+        e.stopPropagation();
+        const tag = e.target.dataset.tag;
+        closeView();
+        setTimeout(() => openView('search'), 80);
+        setTimeout(() => {
+          const inp = document.querySelector('#searchInput');
+          if (inp) { inp.value = `#${tag}`; inp.dispatchEvent(new Event('input')); }
+        }, 200);
+        return;
+      }
+
+      if (state.bulkMode) {
+        if (state.selectedCards.has(card.id)) state.selectedCards.delete(card.id);
+        else state.selectedCards.add(card.id);
+        const root = document.getElementById('viewRoot');
+        renderDeckCards(root.querySelector('#deckCardsBody'), Storage.cardsOf(state.currentDeckId));
+        return;
+      }
+
       if (state.readOnly) return;
       openCardMenu(card, row);
     });
@@ -879,6 +1005,71 @@
     return row;
   }
 
+  /* ---------------------------------------------------------- */
+  /* Bulk Actions Modals                                         */
+  /* ---------------------------------------------------------- */
+  function openMoveBulkSheet(ids) {
+    const card = Storage.getCard(ids[0]);
+    if(!card) return;
+    const decks = state.data.decks.filter(d => d.id !== card.deckId);
+    if (!decks.length) { toast('No other decks available', { type: 'info' }); return; }
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Move ${ids.length} Cards</h3>
+      <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 8px;">
+        ${decks.map(d => `<button class="btn btn-ghost" data-deck="${d.id}">${escapeHTML(d.name)}</button>`).join('')}
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelectorAll('[data-deck]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.deck;
+        ids.forEach(id => Storage.updateCard(id, { deckId: targetId }));
+        closeModal();
+        state.selectedCards.clear();
+        state.bulkMode = false;
+        refresh();
+        closeView();
+        toast('Cards moved', { type: 'success' });
+      });
+    });
+  }
+
+  function openBulkDeleteConfirm(ids) {
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Delete ${ids.length} cards?</h3>
+      <p class="sheet-body">This action cannot be undone.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-danger" data-act="confirm">Delete</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="confirm"]').addEventListener('click', () => {
+      ids.forEach(id => Storage.removeCard(id));
+      closeModal();
+      state.selectedCards.clear();
+      state.bulkMode = false;
+      refresh();
+      closeView();
+      toast('Cards deleted', { type: 'success' });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
+  /* Single Card Menu & Actions                                  */
+  /* ---------------------------------------------------------- */
   function openCardMenu(card, anchor) {
     const menu = document.createElement('div');
     menu.className = 'popover';
@@ -895,7 +1086,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 85; // <--- FIXED z-index
+    menu.style.zIndex = 85;
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
@@ -913,8 +1104,30 @@
         else if (act === 'move') openMoveCardSheet(card);
         else if (act === 'master') toggleMastered(card);
         else if (act === 'reset') resetCardProgress(card);
-        else if (act === 'delete') confirmDeleteCard(card);
+        else if (act === 'delete') softDeleteCard(card); 
       });
+    });
+  }
+
+  function softDeleteCard(card) {
+    Storage.removeCard(card.id);
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const v = $('#viewRoot .view');
+      if (v) renderDeckDetail(v, state.currentDeckId);
+    }
+    toast('Card deleted', { 
+      type: 'info', 
+      duration: 5000,
+      action: { label: 'Undo', onClick: () => { 
+        Storage.updateCard(card.id, card); // Put it back
+        refresh();
+        if (!$('#viewRoot').hidden) {
+          const v = $('#viewRoot .view');
+          if (v) renderDeckDetail(v, state.currentDeckId);
+        }
+        toast('Card restored', { type: 'success' });
+      }} 
     });
   }
 
@@ -1004,16 +1217,15 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Study engine                                                */
+  /* Study engine (with Cram Timer, Haptics, Swipes)             */
   /* ---------------------------------------------------------- */
+  let studyTimerInterval;
+  
   function startStudy({ deckId, mode = 'normal', tag = null }) {
     let cards = state.data.cards.filter(c => !deckId || c.deckId === deckId);
     
-    if (mode === 'normal') {
-      cards = cards.filter(Storage.isDue);
-    } else if (mode === 'tag') {
-      cards = cards.filter(c => (c.tags || []).includes(tag));
-    } 
+    if (mode === 'normal') cards = cards.filter(Storage.isDue);
+    else if (mode === 'tag') cards = cards.filter(c => (c.tags || []).includes(tag));
 
     cards = cards.sort(() => Math.random() - 0.5);
 
@@ -1023,19 +1235,32 @@
     }
 
     state.study = {
-      deckId,
-      mode,
+      deckId, mode, tag,
       queue: cards.map((c) => c.id),
       index: 0,
       flipped: false,
-      typedChecked: false
+      typedChecked: false,
+      timerStart: Date.now()
     };
     openView('study', { deckId });
+    
+    clearInterval(studyTimerInterval);
+    if (mode === 'cram') {
+      studyTimerInterval = setInterval(() => {
+        const el = document.getElementById('cramTimer');
+        if (el) {
+          const diff = Math.floor((Date.now() - state.study.timerStart) / 1000);
+          const m = Math.floor(diff/60).toString().padStart(2, '0');
+          const s = (diff%60).toString().padStart(2, '0');
+          el.textContent = `${m}:${s}`;
+        }
+      }, 1000);
+    }
   }
 
   function renderStudyView(root, payload) {
     if (!state.study) { closeView(); return; }
-    const { deckId } = state.study;
+    const { deckId, mode } = state.study;
     const deck = deckId ? Storage.getDeck(deckId) : null;
 
     root.innerHTML = `
@@ -1047,6 +1272,7 @@
           <div class="study-deck-name">${escapeHTML(deck ? deck.name : 'All due cards')}</div>
           <div class="study-counter" id="studyCounter"></div>
         </div>
+        ${mode === 'cram' ? `<div style="text-align:center;font-family:monospace;font-size:14px;color:var(--warn);margin-bottom:10px;"><i class="fa-solid fa-stopwatch"></i> <span id="cramTimer">00:00</span></div>` : ''}
         <div class="study-progress"><div class="fill" id="studyProgressFill"></div></div>
         <div class="study-card" id="studyCard">
           <div class="study-front" id="studyFront"></div>
@@ -1063,6 +1289,7 @@
     `;
 
     root.querySelector('[data-act="exit"]').addEventListener('click', () => {
+      clearInterval(studyTimerInterval);
       state.study = null;
       closeView();
     });
@@ -1084,6 +1311,8 @@
     const s = state.study;
 
     if (s.index >= s.queue.length) {
+      clearInterval(studyTimerInterval);
+      fireConfetti();
       root.querySelector('.study-wrap').innerHTML = `
         <div class="study-complete">
           <div class="icon"><i class="fa-solid fa-check"></i></div>
@@ -1130,6 +1359,22 @@
       tagsEl.style.display = 'none';
     }
 
+    // SWIPE LOGIC
+    let touchStartX = 0;
+    studyCardEl.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+    studyCardEl.addEventListener('touchend', e => {
+      if (!studyCardEl.contains(e.target)) return;
+      const touchEndX = e.changedTouches[0].screenX;
+      const delta = touchEndX - touchStartX;
+      if (delta < -50) { // Swipe Left
+        if (s.flipped || s.typedChecked) { rateCard(root, 0); if(navigator.vibrate) navigator.vibrate(20); }
+      } else if (delta > 50) { // Swipe Right
+        if (!s.flipped && card.type !== 'typing') studyCardEl.click();
+        else if (s.flipped || s.typedChecked) { rateCard(root, 2); if(navigator.vibrate) navigator.vibrate(20); }
+      }
+    }, {passive: true});
+    // END SWIPE LOGIC
+
     if (card.type === 'cloze') {
       const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
       if (s.flipped) {
@@ -1137,7 +1382,6 @@
       } else {
         frontEl.innerHTML = card.clozeText.replace(regex, (_, ans) => `<span class="study-cloze-blank">${'_'.repeat(Math.min(ans.length, 8))}</span>`);
       }
-      
       studyCardEl.onclick = () => {
         if (s.flipped) return;
         s.flipped = true;
@@ -1195,10 +1439,7 @@
     }
 
     if (!s.flipped && card.type !== 'typing') {
-       revealBtn.onclick = (e) => {
-         e.stopPropagation();
-         studyCardEl.click();
-       };
+       revealBtn.onclick = (e) => { e.stopPropagation(); studyCardEl.click(); };
     }
 
     function showRatingGrid() {
@@ -1215,18 +1456,28 @@
       
       ratingGrid.querySelectorAll('.rate-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-          Storage.rateCard(card.id, Number(btn.dataset.rating));
-          state.data = Storage.getData();
-          s.index++;
-          s.flipped = false;
-          s.typedChecked = false;
-          renderStudyCard(root);
+          rateCard(root, Number(btn.dataset.rating));
         });
       });
     }
 
     root.querySelector('#studyCounter').textContent = `${s.index + 1} / ${s.queue.length}`;
     root.querySelector('#studyProgressFill').style.width = `${(s.index / s.queue.length) * 100}%`;
+  }
+
+  function rateCard(root, rating) {
+    const s = state.study;
+    const card = s.queue ? state.data.cards.find((c) => c.id === s.queue[s.index]) : null;
+    if (!card) return;
+    
+    if (navigator.vibrate) navigator.vibrate(10); // Haptic feedback
+    
+    Storage.rateCard(card.id, rating);
+    state.data = Storage.getData();
+    s.index++;
+    s.flipped = false;
+    s.typedChecked = false;
+    renderStudyCard(root);
   }
 
   /* ---------------------------------------------------------- */
@@ -1240,9 +1491,7 @@
     const streak = Storage.streak(data);
 
     let totalReviews = 0, correctReviews = 0, leeches = 0;
-    data.cards.forEach(c => {
-      if (c.failCount >= 5) leeches++;
-    });
+    data.cards.forEach(c => { if (c.failCount >= 5) leeches++; });
     (data.reviews || []).forEach(r => {
       totalReviews++;
       if (r.rating >= 2) correctReviews++;
@@ -1253,30 +1502,12 @@
       ${viewHeaderHTML('Activity')}
       <div class="view-body">
         <div class="stats-grid">
-          <div class="stat-tile">
-            <div class="n">${total}</div>
-            <div class="l"><i class="fa-solid fa-clone"></i>Total cards</div>
-          </div>
-          <div class="stat-tile warn">
-            <div class="n">${due}</div>
-            <div class="l"><i class="fa-solid fa-bolt"></i>Due now</div>
-          </div>
-          <div class="stat-tile success">
-            <div class="n">${mastered}</div>
-            <div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div>
-          </div>
-          <div class="stat-tile">
-            <div class="n">${streak}<small>d</small></div>
-            <div class="l"><i class="fa-solid fa-fire"></i>Streak</div>
-          </div>
-          <div class="stat-tile">
-            <div class="n">${retention}%</div>
-            <div class="l"><i class="fa-solid fa-brain"></i>Retention</div>
-          </div>
-          <div class="stat-tile">
-            <div class="n">${leeches}</div>
-            <div class="l"><i class="fa-solid fa-bug"></i>Leeches</div>
-          </div>
+          <div class="stat-tile"><div class="n">${total}</div><div class="l"><i class="fa-solid fa-clone"></i>Total cards</div></div>
+          <div class="stat-tile warn"><div class="n">${due}</div><div class="l"><i class="fa-solid fa-bolt"></i>Due now</div></div>
+          <div class="stat-tile success"><div class="n">${mastered}</div><div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div></div>
+          <div class="stat-tile"><div class="n">${streak}<small>d</small></div><div class="l"><i class="fa-solid fa-fire"></i>Streak</div></div>
+          <div class="stat-tile"><div class="n">${retention}%</div><div class="l"><i class="fa-solid fa-brain"></i>Retention</div></div>
+          <div class="stat-tile"><div class="n">${leeches}</div><div class="l"><i class="fa-solid fa-bug"></i>Leeches</div></div>
         </div>
 
         <section class="activity-section">
@@ -1284,13 +1515,7 @@
           <div class="heatmap-wrap">
             <div class="heatmap" id="heatmap"></div>
             <div class="heatmap-legend">
-              <span>Less</span>
-              <span class="heat-cell lvl-0"></span>
-              <span class="heat-cell lvl-1"></span>
-              <span class="heat-cell lvl-2"></span>
-              <span class="heat-cell lvl-3"></span>
-              <span class="heat-cell lvl-4"></span>
-              <span>More</span>
+              <span>Less</span><span class="heat-cell lvl-0"></span><span class="heat-cell lvl-1"></span><span class="heat-cell lvl-2"></span><span class="heat-cell lvl-3"></span><span class="heat-cell lvl-4"></span><span>More</span>
             </div>
           </div>
         </section>
@@ -1303,18 +1528,14 @@
     `;
 
     root.querySelector('[data-act="back"]').addEventListener('click', closeView);
-
     renderHeatmap(root.querySelector('#heatmap'));
     renderActivityFeed(root.querySelector('#activityFeed'));
   }
 
   function renderHeatmap(container) {
     const { counts } = Storage.heatmapData(state.data, 90);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const start = new Date(today);
-    start.setDate(start.getDate() - 89);
-    start.setDate(start.getDate() - start.getDay());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(today); start.setDate(start.getDate() - 89); start.setDate(start.getDate() - start.getDay());
 
     const cells = [];
     const cursor = new Date(start);
@@ -1335,15 +1556,9 @@
   function renderActivityFeed(container) {
     const reviews = (state.data.reviews || []).slice().reverse();
     if (!reviews.length) {
-      container.innerHTML = `
-        <div class="search-hint">
-          <i class="fa-solid fa-clock-rotate-left"></i>
-          <div class="search-hint-title">No reviews yet</div>
-          <div class="search-hint-sub">Study a deck to see your review history here.</div>
-        </div>`;
+      container.innerHTML = `<div class="search-hint"><i class="fa-solid fa-clock-rotate-left"></i><div class="search-hint-title">No reviews yet</div><div class="search-hint-sub">Study a deck to see your review history here.</div></div>`;
       return;
     }
-
     const groups = new Map();
     reviews.slice(0, 200).forEach((r) => {
       const d = new Date(r.at);
@@ -1393,9 +1608,7 @@
   function renderSearchView(root) {
     root.innerHTML = `
       <div class="view-header view-header-search">
-        <button class="view-back" data-act="back" aria-label="Back">
-          <i class="fa-solid fa-arrow-left"></i>
-        </button>
+        <button class="view-back" data-act="back" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button>
         <div class="search-wrap">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="text" id="searchInput" placeholder="Search cards, decks, tags…" autocomplete="off" spellcheck="false">
@@ -1417,12 +1630,7 @@
       clearBtn.hidden = !q;
 
       if (!q) {
-        results.innerHTML = `
-          <div class="search-hint">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <div class="search-hint-title">Search your cards</div>
-            <div class="search-hint-sub">Find by front, back, or tags. Use <strong>#tag</strong> for tag-only matches.</div>
-          </div>`;
+        results.innerHTML = `<div class="search-hint"><i class="fa-solid fa-magnifying-glass"></i><div class="search-hint-title">Search your cards</div><div class="search-hint-sub">Find by front, back, or tags. Use <strong>#tag</strong> for tag-only matches.</div></div>`;
         return;
       }
 
@@ -1443,12 +1651,7 @@
       });
 
       if (!matches.length) {
-        results.innerHTML = `
-          <div class="search-hint">
-            <i class="fa-solid fa-face-frown"></i>
-            <div class="search-hint-title">No matches</div>
-            <div class="search-hint-sub">Nothing found for "<strong>${escapeHTML(q)}</strong>".</div>
-          </div>`;
+        results.innerHTML = `<div class="search-hint"><i class="fa-solid fa-face-frown"></i><div class="search-hint-title">No matches</div><div class="search-hint-sub">Nothing found for "<strong>${escapeHTML(q)}</strong>".</div></div>`;
         return;
       }
 
@@ -1497,9 +1700,7 @@
   function renderTagsView(root) {
     const counts = {};
     state.data.cards.forEach((c) => {
-      (c.tags || []).forEach((t) => {
-        counts[t] = (counts[t] || 0) + 1;
-      });
+      (c.tags || []).forEach((t) => { counts[t] = (counts[t] || 0) + 1; });
     });
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
@@ -1511,13 +1712,7 @@
             <span class="tag-row-name">#${escapeHTML(tag)}</span>
             <span class="tag-row-count">${n} card${n === 1 ? '' : 's'}</span>
           </button>
-        `).join('') : `
-          <div class="search-hint">
-            <i class="fa-solid fa-tag"></i>
-            <div class="search-hint-title">No tags yet</div>
-            <div class="search-hint-sub">Add tags to cards to organize them across decks.</div>
-          </div>
-        `}
+        `).join('') : `<div class="search-hint"><i class="fa-solid fa-tag"></i><div class="search-hint-title">No tags yet</div><div class="search-hint-sub">Add tags to cards to organize them across decks.</div></div>`}
       </div>
     `;
 
@@ -1535,19 +1730,16 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Settings view                                               */
+  /* Settings view (Cleaned up)                                  */
   /* ---------------------------------------------------------- */
   function renderSettingsView(root) {
     const currentFamily = getFamily();
     const currentMode = getMode();
 
-    const themeCircles = THEME_FAMILIES.map((t) => `
-      <button class="theme-circle ${t.id === currentFamily ? 'active' : ''}" data-family-id="${t.id}">
-        <span class="theme-circle-swatch" style="--c1:${t.c1};--c2:${t.c2};">
-          <span class="theme-circle-half theme-circle-left"></span>
-          <span class="theme-circle-half theme-circle-right"></span>
-        </span>
-        <span class="theme-circle-name">${escapeHTML(t.name)}</span>
+    const themeButtons = THEME_FAMILIES.map((t) => `
+      <button class="theme-btn-clean ${t.id === currentFamily ? 'active' : ''}" data-family-id="${t.id}">
+        <span style="width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg, ${t.c1} 50%, ${t.c2} 50%);display:inline-block;"></span>
+        ${escapeHTML(t.name)}
       </button>
     `).join('');
 
@@ -1557,11 +1749,11 @@
     root.innerHTML = `
       ${viewHeaderHTML('Settings')}
       <div class="view-body">
-
+        
         <section class="settings-section">
           <div class="settings-section-title">Appearance</div>
-          <div class="theme-circle-row">${themeCircles}</div>
-          <div class="settings-section-hint">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
+          <div class="appearance-clean">${themeButtons}</div>
+          <div class="settings-section-hint" style="padding-top:6px;">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
         </section>
 
         ${!ro ? `
@@ -1583,26 +1775,6 @@
         </section>
         ` : ''}
 
-        ${!ro ? `
-        <section class="settings-section">
-          <div class="settings-section-title">Google Drive</div>
-          <div class="settings-card">
-            <div class="drive-block">
-              <label class="drive-field">
-                <span class="drive-field-label">OAuth Client ID</span>
-                <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
-              </label>
-              <div class="drive-actions">
-                <button class="drive-btn" id="driveConnectBtn"><i class="fa-solid fa-plug"></i><span>Connect</span></button>
-                <button class="drive-btn primary" id="drivePushBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span>Push</span></button>
-                <button class="drive-btn" id="drivePullBtn"><i class="fa-solid fa-cloud-arrow-down"></i><span>Pull</span></button>
-              </div>
-              <div class="drive-status" id="driveStatus">Not connected</div>
-            </div>
-          </div>
-        </section>
-        ` : ''}
-
         <section class="settings-section">
           <div class="settings-section-title">About</div>
           <div class="settings-card">
@@ -1611,13 +1783,6 @@
               <div class="settings-row-text">
                 <div class="settings-row-title">Version</div>
                 <div class="settings-row-sub" id="appVersion">Loading…</div>
-              </div>
-            </div>
-            <div class="settings-row static">
-              <i class="fa-solid fa-database"></i>
-              <div class="settings-row-text">
-                <div class="settings-row-title">Stored locally</div>
-                <div class="settings-row-sub">Your data never leaves this device unless Drive sync is enabled</div>
               </div>
             </div>
           </div>
@@ -1650,18 +1815,15 @@
       if (el) el.textContent = v;
     });
 
-    root.querySelectorAll('.theme-circle').forEach((circle) => {
-      circle.addEventListener('click', () => {
-        const id = circle.dataset.familyId;
+    root.querySelectorAll('.theme-btn-clean').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.familyId;
         applyTheme(id, getMode());
         persistTheme(id, getMode());
-        root.querySelectorAll('.theme-circle').forEach((c) => {
-          c.classList.toggle('active', c.dataset.familyId === id);
-        });
+        root.querySelectorAll('.theme-btn-clean').forEach((c) => c.classList.toggle('active', c.dataset.familyId === id));
       });
     });
 
-    // Sync & Push Logic
     const syncTokenInput = root.querySelector('#syncTokenInput');
     if (syncTokenInput) {
       syncTokenInput.addEventListener('change', () => {
@@ -1671,18 +1833,6 @@
       root.querySelector('#syncNowBtn').addEventListener('click', () => syncToWorker());
       root.querySelector('#enablePushBtn').addEventListener('click', togglePush);
       updatePushUI();
-    }
-
-    const driveInput = root.querySelector('#driveClientId');
-    if (driveInput) {
-      driveInput.value = getStoredClientId();
-      driveInput.addEventListener('blur', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
-      driveInput.addEventListener('change', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
-
-      root.querySelector('#driveConnectBtn').addEventListener('click', driveConnect);
-      root.querySelector('#drivePushBtn').addEventListener('click', drivePush);
-      root.querySelector('#drivePullBtn').addEventListener('click', drivePull);
-      updateDriveStatus();
     }
 
     const resetRow = root.querySelector('#resetAllRow');
@@ -1761,7 +1911,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Card form                                                   */
+  /* Card form (with Auto-Tag)                                   */
   /* ---------------------------------------------------------- */
   function openCardForm({ cardId = null, deckId = null } = {}) {
     const editing = cardId ? Storage.getCard(cardId) : null;
@@ -1832,7 +1982,10 @@
 
       <label class="field">
         <span class="field-label">Tags <span class="opt">(comma-separated)</span></span>
-        <input type="text" id="fTags" placeholder="e.g. high-yield, exam" value="${actualEditing && actualEditing.tags ? actualEditing.tags.join(', ') : ''}">
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="fTags" placeholder="e.g. high-yield, exam" value="${actualEditing && actualEditing.tags ? actualEditing.tags.join(', ') : ''}" style="flex:1;">
+          <button class="btn btn-ghost" id="autoTagBtn" title="Auto-generate tags" style="padding:0 12px;"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i></button>
+        </div>
       </label>
 
       <div class="sheet-actions ${actualEditing ? '' : ''}">
@@ -1855,6 +2008,19 @@
     const clozeInput = sheet.querySelector('#fCloze');
     const tagsInput = sheet.querySelector('#fTags');
     const deckSelect = sheet.querySelector('#fDeck');
+    
+    sheet.querySelector('#autoTagBtn').addEventListener('click', () => {
+      const text = typeSelect.value === 'cloze' ? clozeInput.value : frontInput.value + ' ' + backInput.value;
+      const auto = generateTags(text);
+      if (auto.length) {
+        const current = tagsInput.value.split(',').map(t=>t.trim()).filter(Boolean);
+        const merged = [...new Set([...current, ...auto])].join(', ');
+        tagsInput.value = merged;
+        toast('Tags generated', { type: 'success', icon: 'fa-wand-magic-sparkles' });
+      } else {
+        toast('Not enough text to generate tags', { type: 'warn' });
+      }
+    });
 
     sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
     sheet.querySelector('[data-act="save"]').addEventListener('click', () => {
@@ -1909,7 +2075,7 @@
     if (actualEditing) {
       sheet.querySelector('[data-act="delete"]').addEventListener('click', () => {
         closeModal();
-        confirmDeleteCard(actualEditing);
+        softDeleteCard(actualEditing);
       });
     }
 
@@ -1920,34 +2086,8 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Delete confirms                                             */
+  /* Modals & Sheets                                             */
   /* ---------------------------------------------------------- */
-  function confirmDeleteCard(card) {
-    const sheet = document.createElement('div');
-    sheet.className = 'modal-sheet';
-    sheet.innerHTML = `
-      <div class="sheet-handle"></div>
-      <h3 class="sheet-title">Delete card?</h3>
-      <p class="sheet-body">"<strong>${escapeHTML(card.front || card.clozeText || 'Card')}</strong>" will be removed permanently.</p>
-      <div class="sheet-actions">
-        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-        <button class="btn btn-danger" data-act="confirm">Delete</button>
-      </div>
-    `;
-    openModal(sheet);
-    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
-    sheet.querySelector('[data-act="confirm"]').addEventListener('click', () => {
-      Storage.removeCard(card.id);
-      closeModal();
-      refresh();
-      if (!$('#viewRoot').hidden && state.currentDeckId) {
-        const v = $('#viewRoot .view');
-        if (v) renderDeckDetail(v, state.currentDeckId);
-      }
-      toast('Card deleted', { type: 'success', icon: 'fa-trash-can' });
-    });
-  }
-
   function confirmDeleteDeck(deck) {
     const cards = Storage.cardsOf(deck.id);
     const sheet = document.createElement('div');
@@ -1978,7 +2118,7 @@
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
       <h3 class="sheet-title">Reset progress?</h3>
-      <p class="sheet-body">All cards in "<strong>${escapeHTML(deck.name)}</strong>" will be marked as due today. Mastery tracking will be cleared.</p>
+      <p class="sheet-body">All cards in "<strong>${escapeHTML(deck.name)}</strong>" will be marked as due today.</p>
       <div class="sheet-actions">
         <button class="btn btn-ghost" data-act="cancel">Cancel</button>
         <button class="btn btn-danger" data-act="confirm">Reset</button>
@@ -2000,7 +2140,7 @@
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
       <h3 class="sheet-title">Reset all data?</h3>
-      <p class="sheet-body">This permanently deletes every deck, card, and review. Back up first if you're unsure.</p>
+      <p class="sheet-body">This permanently deletes every deck, card, and review.</p>
       <label class="confirm-input-label">
         Type <code>DELETE</code> to confirm
         <input type="text" id="confirmResetInput" autocomplete="off" autocapitalize="characters" spellcheck="false">
@@ -2013,9 +2153,7 @@
     openModal(sheet);
     const input = sheet.querySelector('#confirmResetInput');
     const confirmBtn = sheet.querySelector('[data-act="confirm"]');
-    input.addEventListener('input', () => {
-      confirmBtn.disabled = input.value.trim().toUpperCase() !== 'DELETE';
-    });
+    input.addEventListener('input', () => { confirmBtn.disabled = input.value.trim().toUpperCase() !== 'DELETE'; });
     sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
     confirmBtn.addEventListener('click', () => {
       Storage.reset();
@@ -2025,9 +2163,6 @@
     });
   }
 
-  /* ---------------------------------------------------------- */
-  /* Intervals sheet                                             */
-  /* ---------------------------------------------------------- */
   function openIntervalsSheet(deckId) {
     const deck = Storage.getDeck(deckId);
     if (!deck) return;
@@ -2068,23 +2203,16 @@
         inp.value = v;
       });
     });
-
     sheet.querySelector('[data-act="done"]').addEventListener('click', closeModal);
   }
 
-  /* ---------------------------------------------------------- */
-  /* Study by Tag sheet                                          */
-  /* ---------------------------------------------------------- */
   function openStudyByTagSheet(deckId) {
     const cards = Storage.cardsOf(deckId);
     const tags = new Set();
     cards.forEach(c => (c.tags || []).forEach(t => tags.add(t)));
     const sorted = Array.from(tags).sort();
     
-    if (!sorted.length) {
-      toast('No tags in this deck', { type: 'info', icon: 'fa-circle-info' });
-      return;
-    }
+    if (!sorted.length) { toast('No tags in this deck', { type: 'info', icon: 'fa-circle-info' }); return; }
 
     const sheet = document.createElement('div');
     sheet.className = 'modal-sheet';
@@ -2111,7 +2239,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Tools sheet                                                 */
+  /* Tools sheet (Now with Google Drive)                         */
   /* ---------------------------------------------------------- */
   function openToolsSheet() {
     const ro = state.readOnly;
@@ -2128,9 +2256,32 @@
         <button class="tool-tile" data-act="print"><i class="fa-solid fa-chart-line"></i><span>Print</span></button>
         <button class="tool-tile danger" data-act="clear-data" ${ro ? 'disabled' : ''}><i class="fa-solid fa-trash-can"></i><span>Clear Data</span></button>
       </div>
+      
+      ${!ro ? `
+      <div style="padding: 16px 20px; border-top: 1px solid var(--line);">
+        <div class="settings-section-title" style="padding-left:0; margin-bottom:12px;">Google Drive Backup</div>
+        <div class="drive-block" style="padding:0;">
+          <label class="drive-field">
+            <span class="drive-field-label">OAuth Client ID</span>
+            <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
+          </label>
+          <div class="drive-actions">
+            <button class="drive-btn" id="driveConnectBtn"><i class="fa-solid fa-plug"></i><span>Connect</span></button>
+            <button class="drive-btn primary" id="drivePushBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span>Push</span></button>
+            <button class="drive-btn" id="drivePullBtn"><i class="fa-solid fa-cloud-arrow-down"></i><span>Pull</span></button>
+          </div>
+          <div class="drive-status" id="driveStatus">Not connected</div>
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Close</button>
+      </div>
     `;
     openModal(sheet);
 
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
     sheet.querySelectorAll('.tool-tile').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
@@ -2139,6 +2290,17 @@
         setTimeout(() => handleMenuAction(act), 100);
       });
     });
+
+    const driveInput = sheet.querySelector('#driveClientId');
+    if (driveInput) {
+      driveInput.value = getStoredClientId();
+      driveInput.addEventListener('blur', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+      driveInput.addEventListener('change', () => { setStoredClientId(driveInput.value); updateDriveStatus(); });
+      sheet.querySelector('#driveConnectBtn').addEventListener('click', driveConnect);
+      sheet.querySelector('#drivePushBtn').addEventListener('click', drivePush);
+      sheet.querySelector('#drivePullBtn').addEventListener('click', drivePull);
+      updateDriveStatus();
+    }
   }
 
   /* ---------------------------------------------------------- */
@@ -2201,12 +2363,8 @@
       const deckIds = new Set(current.decks.map((d) => d.id));
       const cardIds = new Set(current.cards.map((c) => c.id));
       let addedDecks = 0, addedCards = 0;
-      (incoming.decks || []).forEach((d) => {
-        if (!deckIds.has(d.id)) { current.decks.push(d); addedDecks++; }
-      });
-      (incoming.cards || []).forEach((c) => {
-        if (!cardIds.has(c.id)) { current.cards.push(c); addedCards++; }
-      });
+      (incoming.decks || []).forEach((d) => { if (!deckIds.has(d.id)) { current.decks.push(d); addedDecks++; } });
+      (incoming.cards || []).forEach((c) => { if (!cardIds.has(c.id)) { current.cards.push(c); addedCards++; } });
       Storage.setData(current);
       closeModal();
       refresh();
@@ -2242,56 +2400,76 @@
   }
 
   function importCSVFromFile() {
-    pickFile('.csv,text/csv', async (file) => {
-      try {
-        const text = await file.text();
-        const rows = parseCSV(text);
-        if (rows.length < 2) throw new Error('Empty CSV');
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Import CSV</h3>
+      <p class="sheet-body">Your CSV should have columns for <strong>Front</strong>, <strong>Back</strong>, <strong>Tags</strong> (semicolon separated), and optionally <strong>Deck</strong>.</p>
+      <div style="padding: 0 20px 16px; text-align: center;">
+        <a href="data:text/csv;charset=utf-8,Front,Back,Tags,Deck%0AWhat%20is%20the%20capital%20of%20France%3F,Paris,geography%3Beurope,General" download="cjaycards_template.csv" class="csv-template-link"><i class="fa-solid fa-download"></i> Download Template CSV</a>
+      </div>
+      <div class="sheet-actions" style="flex-direction:column;">
+        <button class="btn btn-primary" data-act="pick">Select File</button>
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelector('[data-act="pick"]').addEventListener('click', () => {
+      closeModal();
+      pickFile('.csv,text/csv', async (file) => {
+        try {
+          const text = await file.text();
+          const rows = parseCSV(text);
+          if (rows.length < 2) throw new Error('Empty CSV');
 
-        const header = rows[0].map((h) => h.trim().toLowerCase());
-        const idx = (n) => header.indexOf(n);
-        const iDeck = idx('deck');
-        const iType = idx('type');
-        const iFront = idx('front') !== -1 ? idx('front') : idx('front/cloze');
-        const iBack = idx('back');
-        const iTags = idx('tags');
-        if (iFront === -1 || iBack === -1) throw new Error('Missing front/back columns');
+          const header = rows[0].map((h) => h.trim().toLowerCase());
+          const idx = (n) => header.indexOf(n);
+          const iDeck = idx('deck');
+          const iType = idx('type');
+          const iFront = idx('front') !== -1 ? idx('front') : idx('front/cloze');
+          const iBack = idx('back');
+          const iTags = idx('tags');
+          if (iFront === -1 || iBack === -1) throw new Error('Missing front/back columns');
 
-        const current = Storage.getData();
-        const deckMap = new Map();
-        current.decks.forEach((d) => deckMap.set(d.name.toLowerCase(), d.id));
+          const current = Storage.getData();
+          const deckMap = new Map();
+          current.decks.forEach((d) => deckMap.set(d.name.toLowerCase(), d.id));
 
-        let added = 0;
-        for (let i = 1; i < rows.length; i++) {
-          const r = rows[i];
-          const type = iType !== -1 ? (r[iType] || 'basic').toLowerCase() : 'basic';
-          const frontOrCloze = (r[iFront] || '').trim();
-          const back = (r[iBack] || '').trim();
-          if (!frontOrCloze) continue;
+          let added = 0;
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            const type = iType !== -1 ? (r[iType] || 'basic').toLowerCase() : 'basic';
+            const frontOrCloze = (r[iFront] || '').trim();
+            const back = (r[iBack] || '').trim();
+            if (!frontOrCloze) continue;
 
-          const deckName = iDeck !== -1 ? (r[iDeck] || '').trim() : 'Imported';
-          let deckId = deckMap.get(deckName.toLowerCase());
-          if (!deckId) {
-            const deck = Storage.addDeck({ name: deckName || 'Imported', color: null });
-            deckId = deck.id;
-            deckMap.set(deckName.toLowerCase(), deckId);
-            current.decks.push(deck);
+            const deckName = iDeck !== -1 ? (r[iDeck] || '').trim() : 'Imported';
+            let deckId = deckMap.get(deckName.toLowerCase());
+            if (!deckId) {
+              const deck = Storage.addDeck({ name: deckName || 'Imported', color: null });
+              deckId = deck.id;
+              deckMap.set(deckName.toLowerCase(), deckId);
+              current.decks.push(deck);
+            }
+
+            const tags = iTags !== -1 && r[iTags] ? r[iTags].split(';').map((t) => t.trim()).filter(Boolean) : [];
+            
+            if (type === 'cloze') {
+              Storage.addCard({ deckId, type: 'cloze', clozeText: frontOrCloze, tags });
+            } else {
+              Storage.addCard({ deckId, type, front: frontOrCloze, back, tags });
+            }
+            added++;
           }
-
-          const tags = iTags !== -1 && r[iTags] ? r[iTags].split(';').map((t) => t.trim()).filter(Boolean) : [];
-          
-          if (type === 'cloze') {
-            Storage.addCard({ deckId, type: 'cloze', clozeText: frontOrCloze, tags });
-          } else {
-            Storage.addCard({ deckId, type, front: frontOrCloze, back, tags });
-          }
-          added++;
+          refresh();
+          toast(`Imported ${added} card${added === 1 ? '' : 's'}`, { type: 'success', icon: 'fa-file-import' });
+        } catch (err) {
+          toast(`Import failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
         }
-        refresh();
-        toast(`Imported ${added} card${added === 1 ? '' : 's'}`, { type: 'success', icon: 'fa-file-import' });
-      } catch (err) {
-        toast(`Import failed: ${err.message}`, { type: 'error', icon: 'fa-triangle-exclamation' });
-      }
+      });
     });
   }
 
@@ -2542,7 +2720,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Offline banner                                              */
+  /* Offline & Install                                           */
   /* ---------------------------------------------------------- */
   const offlineBanner = $('#offlineBanner');
   function updateOnlineStatus() { offlineBanner.classList.toggle('show', !navigator.onLine); }
@@ -2550,9 +2728,6 @@
   window.addEventListener('offline', updateOnlineStatus);
   updateOnlineStatus();
 
-  /* ---------------------------------------------------------- */
-  /* Install prompt                                              */
-  /* ---------------------------------------------------------- */
   const installBanner = $('#installBanner');
   const installAccept = $('#installAccept');
   const installDismiss = $('#installDismiss');
@@ -2619,18 +2794,6 @@
   });
 
   /* ---------------------------------------------------------- */
-  /* Theme toggle (header)                                       */
-  /* ---------------------------------------------------------- */
-  themeToggleSetup();
-  function themeToggleSetup() {
-    $('#themeToggle').addEventListener('click', () => {
-      const next = getMode() === 'dark' ? 'light' : 'dark';
-      applyTheme(getFamily(), next);
-      persistTheme(getFamily(), next);
-    });
-  }
-
-  /* ---------------------------------------------------------- */
   /* Init                                                        */
   /* ---------------------------------------------------------- */
   function init() {
@@ -2651,8 +2814,7 @@
     applyTheme(s.family || localStorage.getItem(LS.family) || 'slate', s.mode || localStorage.getItem(LS.mode) || 'light');
 
     refresh();
-
-    // Sync on boot
+    updateSyncIcon('synced');
     setTimeout(() => syncToWorker(), 500);
   }
 
