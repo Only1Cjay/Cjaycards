@@ -477,7 +477,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 65;
+    menu.style.zIndex = 85;
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
@@ -738,7 +738,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 65;
+    menu.style.zIndex = 85;
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
