@@ -1151,6 +1151,7 @@
     `;
 
     root.querySelector('[data-act="back"]').addEventListener('click', closeView);
+
     renderHeatmap(root.querySelector('#heatmap'));
     renderActivityFeed(root.querySelector('#activityFeed'));
   }
@@ -1191,6 +1192,7 @@
       return;
     }
 
+    // Group by day
     const groups = new Map();
     reviews.slice(0, 200).forEach((r) => {
       const d = new Date(r.at);
@@ -1306,12 +1308,13 @@
         const statusClass = dueLabelClass(card);
         const statusText = dueLabel(card);
         const displayFront = card.type === 'cloze' ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') : card.front;
-        
+        const tagsHTML = (card.tags || []).slice(0, 2).map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
         row.innerHTML = `
           <div class="card-row-body">
             <div class="card-row-front">${highlight(displayFront, term)}</div>
             <div class="card-row-meta">
               <span class="tag" style="background: color-mix(in srgb, ${deck?.color || 'var(--accent)'} 18%, transparent); color: ${deck?.color || 'var(--accent)'};">${escapeHTML(deck?.name || '')}</span>
+              ${tagsHTML}
             </div>
           </div>
           <span class="card-row-status ${statusClass}">${escapeHTML(statusText)}</span>
@@ -1409,6 +1412,8 @@
           <div class="settings-section-hint">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
         </section>
 
+
+
         ${!ro ? `
         <section class="settings-section">
           <div class="settings-section-title">Google Drive</div>
@@ -1476,6 +1481,7 @@
       if (el) el.textContent = v;
     });
 
+    // Theme circles
     root.querySelectorAll('.theme-circle').forEach((circle) => {
       circle.addEventListener('click', () => {
         const id = circle.dataset.familyId;
@@ -1487,6 +1493,7 @@
       });
     });
 
+     // Drive
     const driveInput = root.querySelector('#driveClientId');
     if (driveInput) {
       driveInput.value = getStoredClientId();
@@ -1499,6 +1506,7 @@
       updateDriveStatus();
     }
 
+    // Reset
     const resetRow = root.querySelector('#resetAllRow');
     if (resetRow) {
       resetRow.addEventListener('click', () => { closeView(); setTimeout(confirmResetAll, 100); });
