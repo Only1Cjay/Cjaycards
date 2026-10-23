@@ -18,25 +18,15 @@
   const DUMMY = {
     version: 1,
     decks: [
-      { id: 'demo-anat', name: 'Anatomy', color: '#3D9BC9', intervals: [...DEFAULT_INTERVALS], createdAt: '2026-01-15T08:00:00Z' },
-      { id: 'demo-biochem', name: 'Biochemistry', color: '#10A96B', intervals: [...DEFAULT_INTERVALS], createdAt: '2026-01-15T08:00:00Z' },
-      { id: 'demo-physio', name: 'Physiology', color: '#D97706', intervals: [...DEFAULT_INTERVALS], createdAt: '2026-02-01T08:00:00Z' }
+      { id: 'demo-anat', name: 'Anatomy', color: '#3D9BC9', intervals: [...DEFAULT_INTERVALS], createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z' },
+      { id: 'demo-biochem', name: 'Biochemistry', color: '#10A96B', intervals: [...DEFAULT_INTERVALS], createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z' }
     ],
     cards: [
-      { id: 'c1', deckId: 'demo-anat', front: 'Which muscle flexes the forearm at the elbow?', back: 'Biceps brachii', tags: ['upper-limb'], dueDate: isoDaysFromNow(-1), easyStreak: 1, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-2) },
-      { id: 'c2', deckId: 'demo-anat', front: 'What nerve innervates the diaphragm?', back: 'Phrenic nerve (C3, C4, C5)', tags: ['thorax', 'high-yield'], dueDate: isoDaysFromNow(3), easyStreak: 3, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-1) },
-      { id: 'c3', deckId: 'demo-biochem', front: 'Rate-limiting enzyme of glycolysis?', back: 'Phosphofructokinase-1 (PFK-1)', tags: ['metabolism'], dueDate: isoDaysFromNow(0), easyStreak: 0, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-1) },
-      { id: 'c4', deckId: 'demo-biochem', front: 'What vitamin is a cofactor for pyruvate dehydrogenase?', back: 'Thiamine (B1)', tags: [], dueDate: isoDaysFromNow(1), easyStreak: 1, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-2) },
-      { id: 'c5', deckId: 'demo-physio', front: 'Which ion primarily drives the plateau phase of the cardiac action potential?', back: 'Calcium (Ca²⁺)', tags: ['cardio'], dueDate: isoDaysFromNow(-2), easyStreak: 0, manuallyMastered: false, createdAt: '2026-02-01T08:00:00Z', updatedAt: '2026-02-01T08:00:00Z', lastReviewedAt: isoDaysFromNow(-3) },
-      { id: 'c6', deckId: 'demo-physio', front: 'Normal resting membrane potential of a neuron?', back: 'About −70 mV', tags: [], dueDate: isoDaysFromNow(5), easyStreak: 2, manuallyMastered: false, createdAt: '2026-02-01T08:00:00Z', updatedAt: '2026-02-01T08:00:00Z', lastReviewedAt: isoDaysFromNow(-1) }
+      { id: 'c1', deckId: 'demo-anat', type: 'basic', front: 'Which muscle flexes the forearm at the elbow?', back: 'Biceps brachii', tags: ['upper-limb'], dueDate: isoDaysFromNow(-1), easyStreak: 1, failCount: 0, buriedUntil: null, siblingId: null, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-2) },
+      { id: 'c2', deckId: 'demo-biochem', type: 'cloze', clozeText: 'Rate-limiting enzyme of glycolysis is {{c1::Phosphofructokinase-1}}.', front: '', back: '', tags: ['metabolism'], dueDate: isoDaysFromNow(0), easyStreak: 0, failCount: 0, buriedUntil: null, siblingId: null, manuallyMastered: false, createdAt: '2026-01-15T08:00:00Z', updatedAt: '2026-01-15T08:00:00Z', lastReviewedAt: isoDaysFromNow(-1) }
     ],
-    reviews: [
-      { id: 'r1', cardId: 'c1', deckId: 'demo-anat', rating: 1, at: isoDaysFromNow(-2) },
-      { id: 'r2', cardId: 'c2', deckId: 'demo-anat', rating: 3, at: isoDaysFromNow(-1) },
-      { id: 'r3', cardId: 'c3', deckId: 'demo-biochem', rating: 0, at: isoDaysFromNow(-1) },
-      { id: 'r4', cardId: 'c4', deckId: 'demo-biochem', rating: 2, at: isoDaysFromNow(-2) },
-      { id: 'r5', cardId: 'c6', deckId: 'demo-physio', rating: 3, at: isoDaysFromNow(-1) }
-    ],
+    reviews: [],
+    deletedIds: { decks: [], cards: [] },
     settings: { family: 'slate', mode: 'light', lastSync: null }
   };
 
@@ -55,6 +45,7 @@
       decks: [],
       cards: [],
       reviews: [],
+      deletedIds: { decks: [], cards: [] },
       settings: { family: 'slate', mode: 'light', lastSync: null }
     };
   }
@@ -89,6 +80,18 @@
     if (!Array.isArray(merged.decks)) merged.decks = [];
     if (!Array.isArray(merged.cards)) merged.cards = [];
     if (!Array.isArray(merged.reviews)) merged.reviews = [];
+    if (!merged.deletedIds) merged.deletedIds = { decks: [], cards: [] };
+
+    // Migrate old cards
+    merged.cards.forEach(c => {
+      if (!c.type) c.type = 'basic';
+      if (!c.clozeText) c.clozeText = '';
+      if (!c.failCount) c.failCount = 0;
+      if (!c.buriedUntil) c.buriedUntil = null;
+      if (!c.siblingId) c.siblingId = null;
+      if (!c.updatedAt) c.updatedAt = c.createdAt || new Date().toISOString();
+    });
+
     return merged;
   }
 
@@ -111,8 +114,14 @@
   /* ---------------------------------------------------------- */
   /* Due / mastery / streak                                      */
   /* ---------------------------------------------------------- */
+  function isBuried(card) {
+    if (!card || !card.buriedUntil) return false;
+    return new Date(card.buriedUntil).getTime() > Date.now();
+  }
+
   function isDue(card) {
     if (!card || !card.dueDate) return true;
+    if (isBuried(card)) return false;
     return new Date(card.dueDate).getTime() <= Date.now();
   }
 
@@ -123,9 +132,7 @@
   }
 
   function dueCardsOf(data, deckId = null) {
-    const list = deckId
-      ? data.cards.filter((c) => c.deckId === deckId)
-      : data.cards;
+    const list = deckId ? data.cards.filter((c) => c.deckId === deckId) : data.cards;
     return list.filter(isDue);
   }
 
@@ -134,9 +141,7 @@
   }
 
   function masteredCount(data, deckId = null) {
-    const list = deckId
-      ? data.cards.filter((c) => c.deckId === deckId)
-      : data.cards;
+    const list = deckId ? data.cards.filter((c) => c.deckId === deckId) : data.cards;
     return list.filter(isMastered).length;
   }
 
@@ -201,7 +206,8 @@
         name: String(name || '').trim() || 'Untitled Deck',
         color: color || DECK_COLORS[data.decks.length % DECK_COLORS.length],
         intervals: [...DEFAULT_INTERVALS],
-        createdAt: nowISO()
+        createdAt: nowISO(),
+        updatedAt: nowISO()
       };
       data.decks.push(deck);
       write(data);
@@ -212,7 +218,7 @@
       const data = read();
       const idx = data.decks.findIndex((d) => d.id === id);
       if (idx === -1) return null;
-      data.decks[idx] = { ...data.decks[idx], ...patch, id };
+      data.decks[idx] = { ...data.decks[idx], ...patch, id, updatedAt: nowISO() };
       write(data);
       return data.decks[idx];
     },
@@ -220,8 +226,16 @@
     removeDeck(id) {
       const data = read();
       data.decks = data.decks.filter((d) => d.id !== id);
+      
+      const deletedCards = data.cards.filter((c) => c.deckId === id).map(c => c.id);
       data.cards = data.cards.filter((c) => c.deckId !== id);
       data.reviews = data.reviews.filter((r) => r.deckId !== id);
+      
+      if (!data.deletedIds.decks.includes(id)) data.deletedIds.decks.push(id);
+      deletedCards.forEach(cid => {
+        if (!data.deletedIds.cards.includes(cid)) data.deletedIds.cards.push(cid);
+      });
+      
       write(data);
     },
 
@@ -230,16 +244,21 @@
     },
 
     /* Cards */
-    addCard({ deckId, front, back, tags }) {
+    addCard({ deckId, type, front, back, clozeText, tags, siblingId }) {
       const data = read();
       const card = {
         id: uuid(),
         deckId,
+        type: type || 'basic',
         front: String(front || '').trim(),
         back: String(back || '').trim(),
+        clozeText: String(clozeText || '').trim(),
         tags: Array.isArray(tags) ? tags : [],
         dueDate: nowISO(),
         easyStreak: 0,
+        failCount: 0,
+        buriedUntil: null,
+        siblingId: siblingId || null,
         manuallyMastered: false,
         createdAt: nowISO(),
         updatedAt: nowISO(),
@@ -261,8 +280,14 @@
 
     removeCard(id) {
       const data = read();
+      const card = data.cards.find(c => c.id === id);
+      if (card && card.siblingId) {
+        const sibIdx = data.cards.findIndex(c => c.id === card.siblingId);
+        if (sibIdx !== -1) data.cards[sibIdx].siblingId = null;
+      }
       data.cards = data.cards.filter((c) => c.id !== id);
       data.reviews = data.reviews.filter((r) => r.cardId !== id);
+      if (!data.deletedIds.cards.includes(id)) data.deletedIds.cards.push(id);
       write(data);
     },
 
@@ -288,20 +313,22 @@
       const due = new Date();
       due.setTime(due.getTime() + intervalDays * 24 * 60 * 60 * 1000);
 
-      // Mastery tracking
       let easyStreak = card.easyStreak || 0;
       if (rating === 3) easyStreak += 1;
       else easyStreak = 0;
+
+      let failCount = card.failCount || 0;
+      if (rating === 0) failCount += 1;
 
       data.cards[idx] = {
         ...card,
         dueDate: due.toISOString(),
         easyStreak,
+        failCount,
         lastReviewedAt: nowISO(),
         updatedAt: nowISO()
       };
 
-      // Log review
       data.reviews.push({
         id: uuid(),
         cardId,
@@ -318,17 +345,14 @@
     },
 
     resetCardProgress(cardId) {
-      return api.updateCard(cardId, {
-        dueDate: nowISO(),
-        easyStreak: 0
-      });
+      return api.updateCard(cardId, { dueDate: nowISO(), easyStreak: 0, failCount: 0 });
     },
 
     resetDeckProgress(deckId) {
       const data = read();
       data.cards = data.cards.map((c) =>
         c.deckId === deckId
-          ? { ...c, dueDate: nowISO(), easyStreak: 0, lastReviewedAt: null }
+          ? { ...c, dueDate: nowISO(), easyStreak: 0, failCount: 0, lastReviewedAt: null }
           : c
       );
       write(data);
@@ -345,6 +369,7 @@
 
     /* Derived */
     isDue,
+    isBuried,
     isMastered,
     dueCardsOf,
     totalDueCount,
