@@ -579,11 +579,8 @@
   /* ---------------------------------------------------------- */
   /* Home refresh                                                */
   /* ---------------------------------------------------------- */
-  function refresh() {
+    function refresh() {
     state.data = state.readOnly ? state.data : Storage.getData();
-    const count = Storage.totalDueCount(state.data);
-    $('#dueChipCount').textContent = count;
-    $('#dueChip').classList.toggle('zero', count === 0);
     renderTab();
   }
 
@@ -1490,6 +1487,7 @@
     const total = data.cards.length;
     const due = Storage.totalDueCount(data);
     const mastered = Storage.masteredCount(data);
+    const streak = Storage.streak(data); // <--- ADD THIS LINE
 
     let totalReviews = 0, correctReviews = 0, leeches = 0;
     data.cards.forEach(c => { if (c.failCount >= 5) leeches++; });
@@ -1505,7 +1503,8 @@
         <div class="stats-grid">
           <div class="stat-tile"><div class="n">${total}</div><div class="l"><i class="fa-solid fa-clone"></i>Total cards</div></div>
           <div class="stat-tile warn"><div class="n">${due}</div><div class="l"><i class="fa-solid fa-bolt"></i>Due now</div></div>
-          <div class="stat-tile success"><div class="n">${mastered}</div><div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div></div>
+                   <div class="stat-tile success"><div class="n">${mastered}</div><div class="l"><i class="fa-solid fa-check-double"></i>Mastered</div></div>
+          <div class="stat-tile"><div class="n">${streak}<small>d</small></div><div class="l"><i class="fa-solid fa-fire"></i>Streak</div></div> <!-- <--- ADD THIS TILE -->
           <div class="stat-tile"><div class="n">${retention}%</div><div class="l"><i class="fa-solid fa-brain"></i>Retention</div></div>
           <div class="stat-tile"><div class="n">${leeches}</div><div class="l"><i class="fa-solid fa-bug"></i>Leeches</div></div>
         </div>
