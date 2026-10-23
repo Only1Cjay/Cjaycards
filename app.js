@@ -71,7 +71,7 @@
   }
 
   /* ---------------------------------------------------------- */
-  /* Menu                                                        */
+  /* Menu & Keyboard Shortcuts                                   */
   /* ---------------------------------------------------------- */
   const menuBtn = $('#menuBtn');
   const menuDropdown = $('#menuDropdown');
@@ -95,11 +95,36 @@
   menuBackdrop.addEventListener('click', closeMenu);
 
   document.addEventListener('keydown', (e) => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
     if (e.key === 'Escape') {
       closeMenu();
       closeFab();
       if (!$('#viewRoot').hidden) { closeView(); return; }
       closeModal();
+    }
+
+    // Study Shortcuts
+    if (state.study) {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const revealBtn = document.querySelector('#revealBtn');
+        const studyCard = document.querySelector('#studyCard');
+        if (revealBtn && !revealBtn.hidden) revealBtn.click();
+        else if (studyCard) studyCard.click();
+      }
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        const grid = document.querySelector('#ratingGrid');
+        if (grid && !grid.hidden) {
+          const btn = grid.querySelector(`[data-rating="${Number(e.key)-1}"]`);
+          if (btn) btn.click();
+        }
+      }
+    }
+
+    // Deck Shortcuts
+    if (e.key.toLowerCase() === 'n' && !$('#viewRoot').hidden && state.currentDeckId && !state.readOnly) {
+      openCardForm({});
     }
   });
 
@@ -230,6 +255,7 @@
 
   function dueLabel(card) {
     if (Storage.isMastered(card)) return 'Mastered';
+    if (Storage.isBuried(card)) return 'Buried';
     if (Storage.isDue(card)) return 'Due';
     const diff = new Date(card.dueDate).getTime() - Date.now();
     const days = Math.ceil(diff / 86400000);
@@ -239,6 +265,7 @@
 
   function dueLabelClass(card) {
     if (Storage.isMastered(card)) return 'mastered';
+    if (Storage.isBuried(card)) return 'future';
     if (Storage.isDue(card)) return 'due';
     return 'future';
   }
@@ -439,6 +466,8 @@
     menu.innerHTML = `
       <button data-act="open"><i class="fa-solid fa-folder-open"></i>Open deck</button>
       <button data-act="study"><i class="fa-solid fa-play"></i>Study now</button>
+      <button data-act="cram"><i class="fa-solid fa-bolt"></i>Cram mode</button>
+      <button data-act="tag"><i class="fa-solid fa-tag"></i>Study by tag…</button>
       <button data-act="edit"><i class="fa-solid fa-pen"></i>Edit deck</button>
       <button data-act="intervals"><i class="fa-solid fa-sliders"></i>Intervals</button>
       <button data-act="reset" class="danger"><i class="fa-solid fa-rotate-left"></i>Reset progress</button>
@@ -462,6 +491,8 @@
         const act = b.dataset.act;
         if (act === 'open') openView('deck', { deckId: deck.id });
         else if (act === 'study') startStudy({ deckId: deck.id });
+        else if (act === 'cram') startStudy({ deckId: deck.id, mode: 'cram' });
+        else if (act === 'tag') openStudyByTagSheet(deck.id);
         else if (act === 'edit') openDeckForm({ deckId: deck.id });
         else if (act === 'intervals') openIntervalsSheet(deck.id);
         else if (act === 'reset') confirmResetDeck(deck);
@@ -507,9 +538,10 @@
     const deck = Storage.getDeck(card.deckId);
     const row = document.createElement('button');
     row.className = 'card-row';
+    const displayFront = card.type === 'cloze' ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') : card.front;
     row.innerHTML = `
       <div class="card-row-body">
-        <div class="card-row-front">${escapeHTML(card.front)}</div>
+        <div class="card-row-front">${escapeHTML(displayFront || 'Empty card')}</div>
         <div class="card-row-meta">
           <span class="tag" style="background: color-mix(in srgb, ${deck?.color || 'var(--accent)'} 18%, transparent); color: ${deck?.color || 'var(--accent)'};">${escapeHTML(deck?.name || 'Unknown')}</span>
         </div>
@@ -648,7 +680,7 @@
         return new Date(a.dueDate) - new Date(b.dueDate);
       });
     } else if (state.sortMode === 'az') {
-      sorted.sort((a, b) => a.front.localeCompare(b.front));
+      sorted.sort((a, b) => (a.front || a.clozeText || '').localeCompare(b.front || b.clozeText || ''));
     } else if (state.sortMode === 'newest') {
       sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -661,14 +693,23 @@
     const row = document.createElement('button');
     row.className = 'card-row';
 
-    const tagsHTML = (card.tags || []).slice(0, 2).map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
+    const displayFront = card.type === 'cloze' 
+      ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') 
+      : card.front;
+
+    let typeLabel = '';
+    if (card.type === 'cloze') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Cloze</span>';
+    if (card.type === 'typing') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Typing</span>';
+    if (card.type === 'reversed') typeLabel = '<span class="tag" style="background:var(--accent-soft); color:var(--accent-deep);">Reversed</span>';
+    if (card.failCount >= 5) typeLabel += '<span class="tag" style="background:var(--again); color:#fff;">Leech</span>';
+
     const statusClass = dueLabelClass(card);
     const statusText = dueLabel(card);
 
     row.innerHTML = `
       <div class="card-row-body">
-        <div class="card-row-front">${escapeHTML(card.front)}</div>
-        ${tagsHTML ? `<div class="card-row-meta">${tagsHTML}</div>` : ''}
+        <div class="card-row-front">${escapeHTML(displayFront || 'Empty card')}</div>
+        ${typeLabel ? `<div class="card-row-meta">${typeLabel}</div>` : ''}
       </div>
       <span class="card-row-status ${statusClass}">${escapeHTML(statusText)}</span>
     `;
@@ -686,6 +727,9 @@
     menu.className = 'popover';
     menu.innerHTML = `
       <button data-act="edit"><i class="fa-solid fa-pen"></i>Edit card</button>
+      <button data-act="bury"><i class="fa-solid fa-bed"></i>${Storage.isBuried(card) ? 'Unbury' : 'Bury until tomorrow'}</button>
+      <button data-act="duplicate"><i class="fa-solid fa-copy"></i>Duplicate</button>
+      <button data-act="move"><i class="fa-solid fa-folder-tree"></i>Move to deck…</button>
       <button data-act="master"><i class="fa-solid fa-check-double"></i>${Storage.isMastered(card) ? 'Unmark mastered' : 'Mark as mastered'}</button>
       <button data-act="reset"><i class="fa-solid fa-rotate-left"></i>Reset progress</button>
       <button data-act="delete" class="danger"><i class="fa-solid fa-trash-can"></i>Delete card</button>
@@ -707,9 +751,81 @@
         close();
         const act = b.dataset.act;
         if (act === 'edit') openCardForm({ cardId: card.id });
+        else if (act === 'bury') toggleBury(card);
+        else if (act === 'duplicate') duplicateCard(card);
+        else if (act === 'move') openMoveCardSheet(card);
         else if (act === 'master') toggleMastered(card);
         else if (act === 'reset') resetCardProgress(card);
         else if (act === 'delete') confirmDeleteCard(card);
+      });
+    });
+  }
+
+  function toggleBury(card) {
+    if (Storage.isBuried(card)) {
+      Storage.updateCard(card.id, { buriedUntil: null });
+      toast('Unburied', { type: 'success', icon: 'fa-bed' });
+    } else {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(4, 0, 0, 0); 
+      Storage.updateCard(card.id, { buriedUntil: tomorrow.toISOString() });
+      toast('Buried until tomorrow', { type: 'success', icon: 'fa-bed' });
+    }
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const view = $('#viewRoot .view');
+      if (view) renderDeckDetail(view, state.currentDeckId);
+    }
+  }
+
+  function duplicateCard(card) {
+    Storage.addCard({
+      deckId: card.deckId,
+      type: card.type,
+      front: card.front,
+      back: card.back,
+      clozeText: card.clozeText,
+      tags: [...(card.tags || [])]
+    });
+    toast('Card duplicated', { type: 'success', icon: 'fa-copy' });
+    refresh();
+    if (!$('#viewRoot').hidden && state.currentDeckId) {
+      const view = $('#viewRoot .view');
+      if (view) renderDeckDetail(view, state.currentDeckId);
+    }
+  }
+
+  function openMoveCardSheet(card) {
+    const decks = state.data.decks.filter(d => d.id !== card.deckId);
+    if (!decks.length) { toast('No other decks available', { type: 'info' }); return; }
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Move Card</h3>
+      <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 8px;">
+        ${decks.map(d => `<button class="btn btn-ghost" data-deck="${d.id}">${escapeHTML(d.name)}</button>`).join('')}
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelectorAll('[data-deck]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.deck;
+        Storage.updateCard(card.id, { deckId: targetId });
+        if (card.siblingId) Storage.updateCard(card.siblingId, { deckId: targetId });
+        closeModal();
+        refresh();
+        if (!$('#viewRoot').hidden && state.currentDeckId) {
+          const view = $('#viewRoot .view');
+          if (view) renderDeckDetail(view, state.currentDeckId);
+        }
+        toast('Card moved', { type: 'success', icon: 'fa-folder-tree' });
       });
     });
   }
@@ -733,15 +849,29 @@
   /* ---------------------------------------------------------- */
   /* Study engine                                                */
   /* ---------------------------------------------------------- */
-  function startStudy({ deckId }) {
-    const due = Storage.dueCardsOf(state.data, deckId);
-    if (!due.length) { toast('Nothing due to study', { type: 'info', icon: 'fa-circle-info' }); return; }
+  function startStudy({ deckId, mode = 'normal', tag = null }) {
+    let cards = state.data.cards.filter(c => !deckId || c.deckId === deckId);
+    
+    if (mode === 'normal') {
+      cards = cards.filter(Storage.isDue);
+    } else if (mode === 'tag') {
+      cards = cards.filter(c => (c.tags || []).includes(tag));
+    } 
+
+    cards = cards.sort(() => Math.random() - 0.5);
+
+    if (!cards.length) { 
+      toast(mode === 'cram' ? 'Deck is empty' : 'Nothing due to study', { type: 'info', icon: 'fa-circle-info' }); 
+      return; 
+    }
 
     state.study = {
       deckId,
-      queue: due.map((c) => c.id),
+      mode,
+      queue: cards.map((c) => c.id),
       index: 0,
-      flipped: false
+      flipped: false,
+      typedChecked: false
     };
     openView('study', { deckId });
   }
@@ -780,24 +910,12 @@
       closeView();
     });
 
-    root.querySelector('#studyCard').addEventListener('click', () => {
-      if (!state.study || state.study.flipped) return;
-      state.study.flipped = true;
-      root.querySelector('#studyBack').classList.add('show');
-      root.querySelector('#studyHint').hidden = true;
-      root.querySelector('#revealBtn').hidden = true;
-      root.querySelector('#ratingGrid').hidden = false;
-    });
-
-    root.querySelector('#revealBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      root.querySelector('#studyCard').click();
-    });
-
     root.querySelector('#skipBtn').addEventListener('click', () => {
       if (!state.study) return;
       const cur = state.study.queue.splice(state.study.index, 1)[0];
       state.study.queue.push(cur);
+      state.study.flipped = false;
+      state.study.typedChecked = false;
       renderStudyCard(root);
     });
 
@@ -809,12 +927,11 @@
     const s = state.study;
 
     if (s.index >= s.queue.length) {
-      // Complete
       root.querySelector('.study-wrap').innerHTML = `
         <div class="study-complete">
           <div class="icon"><i class="fa-solid fa-check"></i></div>
           <h2>All done for now</h2>
-          <p>You reviewed every due card in this session.</p>
+          <p>You reviewed every card in this session.</p>
           <button class="btn btn-primary" style="margin-top:12px;" id="doneBtn">Back to decks</button>
         </div>
       `;
@@ -831,45 +948,128 @@
     const deck = Storage.getDeck(card.deckId);
     const intervals = deck ? deck.intervals : Storage.DEFAULT_INTERVALS;
 
-    root.querySelector('#studyFront').textContent = card.front;
-    root.querySelector('#studyBack').textContent = card.back;
-    root.querySelector('#studyBack').classList.remove('show');
-    root.querySelector('#studyHint').hidden = false;
-    root.querySelector('#revealBtn').hidden = false;
-    root.querySelector('#ratingGrid').hidden = true;
+    const frontEl = root.querySelector('#studyFront');
+    const backEl = root.querySelector('#studyBack');
+    const tagsEl = root.querySelector('#studyTags');
+    const hintEl = root.querySelector('#studyHint');
+    const revealBtn = root.querySelector('#revealBtn');
+    const ratingGrid = root.querySelector('#ratingGrid');
+    const skipBtn = root.querySelector('#skipBtn');
+    const studyCardEl = root.querySelector('#studyCard');
 
-    const tags = root.querySelector('#studyTags');
+    backEl.classList.remove('show');
+    tagsEl.innerHTML = '';
+    hintEl.hidden = false;
+    revealBtn.hidden = false;
+    ratingGrid.hidden = true;
+    ratingGrid.innerHTML = '';
+    skipBtn.hidden = false;
+    studyCardEl.onclick = null;
+
     if (card.tags && card.tags.length) {
-      tags.innerHTML = card.tags.map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
-      tags.style.display = 'flex';
+      tagsEl.innerHTML = card.tags.map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
+      tagsEl.style.display = 'flex';
     } else {
-      tags.style.display = 'none';
+      tagsEl.style.display = 'none';
+    }
+
+    if (card.type === 'cloze') {
+      const regex = /\{\{(?:c\d+::)?([^}]+)\}\}/g;
+      if (s.flipped) {
+        frontEl.innerHTML = card.clozeText.replace(regex, (_, ans) => `<span class="study-cloze-answer">${escapeHTML(ans)}</span>`);
+      } else {
+        frontEl.innerHTML = card.clozeText.replace(regex, (_, ans) => `<span class="study-cloze-blank">${'_'.repeat(Math.min(ans.length, 8))}</span>`);
+      }
+      
+      studyCardEl.onclick = () => {
+        if (s.flipped) return;
+        s.flipped = true;
+        renderStudyCard(root);
+      };
+    } else if (card.type === 'typing') {
+      frontEl.textContent = card.front;
+      hintEl.hidden = true;
+      revealBtn.hidden = true;
+      
+      if (!s.typedChecked) {
+        ratingGrid.hidden = false;
+        ratingGrid.style.display = 'flex';
+        ratingGrid.style.flexDirection = 'column';
+        ratingGrid.innerHTML = `
+          <input type="text" id="typingInput" class="study-typing-input" placeholder="Type your answer..." autocomplete="off">
+          <button class="btn btn-primary" id="checkBtn" style="margin-top:10px;">Check</button>
+        `;
+        const input = ratingGrid.querySelector('#typingInput');
+        input.focus();
+        
+        const doCheck = () => {
+          if (!input.value.trim()) return;
+          const val = input.value.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
+          const ans = card.back.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
+          s.typedChecked = true;
+          s.flipped = true;
+          backEl.textContent = card.back;
+          backEl.classList.add('show');
+          
+          if (val === ans) toast('Correct!', { type: 'success', icon: 'fa-check' });
+          else toast('Incorrect', { type: 'error', icon: 'fa-xmark' });
+          
+          renderStudyCard(root);
+        };
+        
+        input.addEventListener('keydown', e => { if(e.key==='Enter') doCheck(); });
+        ratingGrid.querySelector('#checkBtn').addEventListener('click', doCheck);
+      } else {
+        backEl.textContent = card.back;
+        backEl.classList.add('show');
+        showRatingGrid();
+      }
+    } else {
+      frontEl.textContent = card.front;
+      backEl.textContent = card.back;
+      studyCardEl.onclick = () => {
+        if (s.flipped) return;
+        s.flipped = true;
+        backEl.classList.add('show');
+        hintEl.hidden = true;
+        revealBtn.hidden = true;
+        showRatingGrid();
+      };
+    }
+
+    if (!s.flipped && card.type !== 'typing') {
+       revealBtn.onclick = (e) => {
+         e.stopPropagation();
+         studyCardEl.click();
+       };
+    }
+
+    function showRatingGrid() {
+      revealBtn.hidden = true;
+      ratingGrid.hidden = false;
+      ratingGrid.style.display = 'grid';
+      ratingGrid.style.flexDirection = '';
+      ratingGrid.innerHTML = RATING_LABELS.map((label, i) => `
+        <button class="rate-btn rate-${RATING_CLASSES[i]}" data-rating="${i}">
+          ${label}
+          <span class="interval">${intervalDisplay(intervals[i])}</span>
+        </button>
+      `).join('');
+      
+      ratingGrid.querySelectorAll('.rate-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          Storage.rateCard(card.id, Number(btn.dataset.rating));
+          state.data = Storage.getData();
+          s.index++;
+          s.flipped = false;
+          s.typedChecked = false;
+          renderStudyCard(root);
+        });
+      });
     }
 
     root.querySelector('#studyCounter').textContent = `${s.index + 1} / ${s.queue.length}`;
     root.querySelector('#studyProgressFill').style.width = `${(s.index / s.queue.length) * 100}%`;
-
-    // Rating buttons
-    const grid = root.querySelector('#ratingGrid');
-    grid.innerHTML = RATING_LABELS.map((label, i) => `
-      <button class="rate-btn rate-${RATING_CLASSES[i]}" data-rating="${i}">
-        ${label}
-        <span class="interval">${intervalDisplay(intervals[i])}</span>
-      </button>
-    `).join('');
-
-    grid.querySelectorAll('.rate-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const rating = Number(btn.dataset.rating);
-        Storage.rateCard(card.id, rating);
-        state.data = Storage.getData();
-        s.index++;
-        s.flipped = false;
-        renderStudyCard(root);
-      });
-    });
-
-    s.flipped = false;
   }
 
   /* ---------------------------------------------------------- */
@@ -881,6 +1081,16 @@
     const due = Storage.totalDueCount(data);
     const mastered = Storage.masteredCount(data);
     const streak = Storage.streak(data);
+
+    let totalReviews = 0, correctReviews = 0, leeches = 0;
+    data.cards.forEach(c => {
+      if (c.failCount >= 5) leeches++;
+    });
+    (data.reviews || []).forEach(r => {
+      totalReviews++;
+      if (r.rating >= 2) correctReviews++;
+    });
+    const retention = totalReviews ? Math.round((correctReviews / totalReviews) * 100) : 0;
 
     root.innerHTML = `
       ${viewHeaderHTML('Activity')}
@@ -901,6 +1111,14 @@
           <div class="stat-tile">
             <div class="n">${streak}<small>d</small></div>
             <div class="l"><i class="fa-solid fa-fire"></i>Streak</div>
+          </div>
+          <div class="stat-tile">
+            <div class="n">${retention}%</div>
+            <div class="l"><i class="fa-solid fa-brain"></i>Retention</div>
+          </div>
+          <div class="stat-tile">
+            <div class="n">${leeches}</div>
+            <div class="l"><i class="fa-solid fa-bug"></i>Leeches</div>
           </div>
         </div>
 
@@ -969,7 +1187,6 @@
       return;
     }
 
-    // Group by day
     const groups = new Map();
     reviews.slice(0, 200).forEach((r) => {
       const d = new Date(r.at);
@@ -992,7 +1209,7 @@
         entry.innerHTML = `
           <span class="dot" style="background:${deck?.color || 'var(--accent)'}"></span>
           <div class="feed-body">
-            <div class="feed-title">${escapeHTML(card.front)}</div>
+            <div class="feed-title">${escapeHTML(card.front || card.clozeText || 'Card')}</div>
             <div class="feed-sub">${escapeHTML(deck?.name || 'Unknown')} · ${time}</div>
           </div>
           <span class="feed-rating rating-${RATING_CLASSES[r.rating]}">${RATING_LABELS[r.rating]}</span>
@@ -1062,6 +1279,7 @@
         if (isTag) hit = tags.some((t) => t.toLowerCase().includes(term));
         else hit = (c.front || '').toLowerCase().includes(term)
               || (c.back || '').toLowerCase().includes(term)
+              || (c.clozeText || '').toLowerCase().includes(term)
               || tags.some((t) => t.toLowerCase().includes(term))
               || (deck?.name || '').toLowerCase().includes(term);
         if (hit) matches.push({ card: c, deck });
@@ -1083,10 +1301,11 @@
         row.className = 'card-row';
         const statusClass = dueLabelClass(card);
         const statusText = dueLabel(card);
+        const displayFront = card.type === 'cloze' ? card.clozeText.replace(/\{\{(?:c\d+::)?([^}]+)\}\}/g, '[$1]') : card.front;
         const tagsHTML = (card.tags || []).slice(0, 2).map((t) => `<span class="tag">#${escapeHTML(t)}</span>`).join('');
         row.innerHTML = `
           <div class="card-row-body">
-            <div class="card-row-front">${highlight(card.front, term)}</div>
+            <div class="card-row-front">${highlight(displayFront, term)}</div>
             <div class="card-row-meta">
               <span class="tag" style="background: color-mix(in srgb, ${deck?.color || 'var(--accent)'} 18%, transparent); color: ${deck?.color || 'var(--accent)'};">${escapeHTML(deck?.name || '')}</span>
               ${tagsHTML}
@@ -1256,7 +1475,6 @@
       if (el) el.textContent = v;
     });
 
-    // Theme circles
     root.querySelectorAll('.theme-circle').forEach((circle) => {
       circle.addEventListener('click', () => {
         const id = circle.dataset.familyId;
@@ -1268,7 +1486,6 @@
       });
     });
 
-     // Drive
     const driveInput = root.querySelector('#driveClientId');
     if (driveInput) {
       driveInput.value = getStoredClientId();
@@ -1281,7 +1498,6 @@
       updateDriveStatus();
     }
 
-    // Reset
     const resetRow = root.querySelector('#resetAllRow');
     if (resetRow) {
       resetRow.addEventListener('click', () => { closeView(); setTimeout(confirmResetAll, 100); });
@@ -1362,20 +1578,27 @@
   /* ---------------------------------------------------------- */
   function openCardForm({ cardId = null, deckId = null } = {}) {
     const editing = cardId ? Storage.getCard(cardId) : null;
-    const decks = state.data.decks;
+    let actualEditing = editing;
+    if (editing && editing.type === 'reversed' && editing.siblingId) {
+      actualEditing = Storage.getCard(editing.siblingId) || editing;
+    }
 
+    const decks = state.data.decks;
     if (!decks.length) {
       toast('Create a deck first', { type: 'warn', icon: 'fa-triangle-exclamation' });
       return;
     }
 
-    let currentDeckId = editing?.deckId || deckId || state.currentDeckId || decks[0].id;
+    let currentDeckId = actualEditing?.deckId || deckId || state.currentDeckId || decks[0].id;
+    const type = actualEditing?.type || 'basic';
+    const isReversed = !!(actualEditing && actualEditing.type === 'basic' && actualEditing.siblingId);
+    const clozeText = actualEditing?.clozeText || '';
 
     const sheet = document.createElement('div');
     sheet.className = 'modal-sheet';
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
-      <h3 class="sheet-title">${editing ? 'Edit card' : 'Add card'}</h3>
+      <h3 class="sheet-title">${actualEditing ? 'Edit card' : 'Add card'}</h3>
 
       <label class="field">
         <span class="field-label">Deck</span>
@@ -1387,63 +1610,126 @@
       </label>
 
       <label class="field">
-        <span class="field-label">Front</span>
-        <textarea id="fFront" placeholder="Question or prompt…">${editing ? escapeHTML(editing.front) : ''}</textarea>
+        <span class="field-label">Card Type</span>
+        <div class="search-wrap" style="height:auto; padding:10px 14px;">
+          <select id="fType" style="border:none; background:transparent; color:var(--text); font:inherit; font-size:14.5px; width:100%;">
+            <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (Front → Back)</option>
+            <option value="typing" ${type === 'typing' ? 'selected' : ''}>Typing (Type the answer)</option>
+            <option value="cloze" ${type === 'cloze' ? 'selected' : ''}>Cloze (Fill in the blank)</option>
+          </select>
+        </div>
       </label>
 
-      <label class="field">
-        <span class="field-label">Back</span>
-        <textarea id="fBack" placeholder="Answer…">${editing ? escapeHTML(editing.back) : ''}</textarea>
-      </label>
+      <div id="basicFields" ${type === 'cloze' ? 'style="display:none"' : ''}>
+        <label class="field">
+          <span class="field-label">Front</span>
+          <textarea id="fFront" placeholder="Question or prompt…">${actualEditing ? escapeHTML(actualEditing.front) : ''}</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Back</span>
+          <textarea id="fBack" placeholder="Answer…">${actualEditing ? escapeHTML(actualEditing.back) : ''}</textarea>
+        </label>
+        <label class="field" style="display:flex; align-items:center; gap:8px; margin-top:16px; cursor:pointer;">
+          <input type="checkbox" id="fReverse" ${isReversed ? 'checked' : ''} style="width:18px; height:18px;">
+          <span class="field-label" style="margin:0;">Also reverse (Back → Front)</span>
+        </label>
+      </div>
+
+      <div id="clozeFields" ${type !== 'cloze' ? 'style="display:none"' : ''}>
+        <label class="field">
+          <span class="field-label">Cloze Text</span>
+          <textarea id="fCloze" placeholder="The capital of France is {{c1::Paris}}." style="min-height:100px;">${escapeHTML(clozeText)}</textarea>
+          <span class="field-hint">Wrap hidden parts in {{c1::answer}}.</span>
+        </label>
+      </div>
 
       <label class="field">
         <span class="field-label">Tags <span class="opt">(comma-separated)</span></span>
-        <input type="text" id="fTags" placeholder="e.g. high-yield, exam" value="${editing && editing.tags ? editing.tags.join(', ') : ''}">
+        <input type="text" id="fTags" placeholder="e.g. high-yield, exam" value="${actualEditing && actualEditing.tags ? actualEditing.tags.join(', ') : ''}">
       </label>
 
-      <div class="sheet-actions ${editing ? '' : ''}">
-        ${editing ? '<button class="btn btn-danger-ghost" data-act="delete"><i class="fa-solid fa-trash-can"></i></button>' : ''}
+      <div class="sheet-actions ${actualEditing ? '' : ''}">
+        ${actualEditing ? '<button class="btn btn-danger-ghost" data-act="delete"><i class="fa-solid fa-trash-can"></i></button>' : ''}
         <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-        <button class="btn btn-primary" data-act="save">${editing ? 'Save' : 'Add'}</button>
+        <button class="btn btn-primary" data-act="save">${actualEditing ? 'Save' : 'Add'}</button>
       </div>
     `;
     openModal(sheet);
 
+    const typeSelect = sheet.querySelector('#fType');
+    typeSelect.addEventListener('change', () => {
+      const v = typeSelect.value;
+      sheet.querySelector('#basicFields').style.display = v === 'cloze' ? 'none' : 'block';
+      sheet.querySelector('#clozeFields').style.display = v === 'cloze' ? 'block' : 'none';
+    });
+
     const frontInput = sheet.querySelector('#fFront');
     const backInput = sheet.querySelector('#fBack');
+    const clozeInput = sheet.querySelector('#fCloze');
     const tagsInput = sheet.querySelector('#fTags');
     const deckSelect = sheet.querySelector('#fDeck');
 
     sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
     sheet.querySelector('[data-act="save"]').addEventListener('click', () => {
+      const fType = typeSelect.value;
       const front = frontInput.value.trim();
       const back = backInput.value.trim();
-      if (!front || !back) {
-        toast('Front and back are required', { type: 'warn', icon: 'fa-triangle-exclamation' });
-        return;
-      }
+      const fCloze = clozeInput.value.trim();
       const tags = tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean);
       const targetDeckId = deckSelect.value;
+      const reverse = sheet.querySelector('#fReverse').checked;
 
-      if (editing) {
-        Storage.updateCard(editing.id, { deckId: targetDeckId, front, back, tags });
-        toast('Card updated', { type: 'success', icon: 'fa-check' });
+      if (fType === 'cloze') {
+        if (!fCloze || !fCloze.includes('{{')) { toast('Add at least one {{c1::answer}} marker', { type: 'warn' }); return; }
+        if (actualEditing) {
+          Storage.updateCard(actualEditing.id, { type: 'cloze', clozeText: fCloze, tags, deckId: targetDeckId });
+        } else {
+          Storage.addCard({ deckId: targetDeckId, type: 'cloze', clozeText: fCloze, tags });
+        }
       } else {
-        Storage.addCard({ deckId: targetDeckId, front, back, tags });
-        toast('Card added', { type: 'success', icon: 'fa-plus' });
+        if (!front || !back) { toast('Front and back required', { type: 'warn' }); return; }
+        
+        if (actualEditing) {
+          const updates = { type: fType, front, back, tags, deckId: targetDeckId };
+          Storage.updateCard(actualEditing.id, updates);
+          
+          if (reverse && !actualEditing.siblingId) {
+            const sib = Storage.addCard({ deckId: targetDeckId, type: 'reversed', front: back, back: front, tags, siblingId: actualEditing.id });
+            Storage.updateCard(actualEditing.id, { siblingId: sib.id });
+          } else if (!reverse && actualEditing.siblingId) {
+            Storage.removeCard(actualEditing.siblingId);
+            Storage.updateCard(actualEditing.id, { siblingId: null });
+          } else if (reverse && actualEditing.siblingId) {
+            Storage.updateCard(actualEditing.siblingId, { front: back, back: front, tags, deckId: targetDeckId });
+          }
+        } else {
+          const primary = Storage.addCard({ deckId: targetDeckId, type: fType, front, back, tags });
+          if (reverse) {
+            const sib = Storage.addCard({ deckId: targetDeckId, type: 'reversed', front: back, back: front, tags, siblingId: primary.id });
+            Storage.updateCard(primary.id, { siblingId: sib.id });
+          }
+        }
       }
+      toast(actualEditing ? 'Card updated' : 'Card added', { type: 'success' });
       closeModal();
       refresh();
+      if (!$('#viewRoot').hidden && state.currentDeckId) {
+        const v = $('#viewRoot .view');
+        if (v) renderDeckDetail(v, state.currentDeckId);
+      }
     });
 
-    if (editing) {
+    if (actualEditing) {
       sheet.querySelector('[data-act="delete"]').addEventListener('click', () => {
         closeModal();
-        confirmDeleteCard(editing);
+        confirmDeleteCard(actualEditing);
       });
     }
 
-    setTimeout(() => frontInput.focus(), 200);
+    setTimeout(() => {
+      if (fType === 'cloze') clozeInput.focus();
+      else frontInput.focus();
+    }, 200);
   }
 
   /* ---------------------------------------------------------- */
@@ -1455,7 +1741,7 @@
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
       <h3 class="sheet-title">Delete card?</h3>
-      <p class="sheet-body">"<strong>${escapeHTML(card.front.slice(0, 80))}${card.front.length > 80 ? '…' : ''}</strong>" will be removed permanently.</p>
+      <p class="sheet-body">"<strong>${escapeHTML(card.front || card.clozeText || 'Card')}</strong>" will be removed permanently.</p>
       <div class="sheet-actions">
         <button class="btn btn-ghost" data-act="cancel">Cancel</button>
         <button class="btn btn-danger" data-act="confirm">Delete</button>
@@ -1600,6 +1886,44 @@
   }
 
   /* ---------------------------------------------------------- */
+  /* Study by Tag sheet                                          */
+  /* ---------------------------------------------------------- */
+  function openStudyByTagSheet(deckId) {
+    const cards = Storage.cardsOf(deckId);
+    const tags = new Set();
+    cards.forEach(c => (c.tags || []).forEach(t => tags.add(t)));
+    const sorted = Array.from(tags).sort();
+    
+    if (!sorted.length) {
+      toast('No tags in this deck', { type: 'info', icon: 'fa-circle-info' });
+      return;
+    }
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet';
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <h3 class="sheet-title">Study by Tag</h3>
+      <p class="sheet-body">Pick a tag to study only those cards.</p>
+      <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 8px;">
+        ${sorted.map(t => `<button class="btn btn-ghost" data-tag="${escapeHTML(t)}">#${escapeHTML(t)}</button>`).join('')}
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      </div>
+    `;
+    openModal(sheet);
+    
+    sheet.querySelector('[data-act="cancel"]').addEventListener('click', closeModal);
+    sheet.querySelectorAll('[data-tag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        closeModal();
+        startStudy({ deckId, mode: 'tag', tag: btn.dataset.tag });
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- */
   /* Tools sheet                                                 */
   /* ---------------------------------------------------------- */
   function openToolsSheet() {
@@ -1704,16 +2028,18 @@
   }
 
   function exportCSV() {
-    const rows = [['Deck', 'Front', 'Back', 'Tags', 'DueDate', 'EasyStreak', 'Mastered']];
+    const rows = [['Deck', 'Type', 'Front/Cloze', 'Back', 'Tags', 'DueDate', 'EasyStreak', 'FailCount', 'Mastered']];
     state.data.cards.forEach((c) => {
       const deck = Storage.getDeck(c.deckId);
       rows.push([
         deck?.name || '',
-        c.front,
+        c.type || 'basic',
+        c.type === 'cloze' ? c.clozeText : c.front,
         c.back,
         (c.tags || []).join(';'),
         c.dueDate || '',
         c.easyStreak || 0,
+        c.failCount || 0,
         Storage.isMastered(c) ? 'yes' : 'no'
       ]);
     });
@@ -1738,7 +2064,8 @@
         const header = rows[0].map((h) => h.trim().toLowerCase());
         const idx = (n) => header.indexOf(n);
         const iDeck = idx('deck');
-        const iFront = idx('front');
+        const iType = idx('type');
+        const iFront = idx('front') !== -1 ? idx('front') : idx('front/cloze');
         const iBack = idx('back');
         const iTags = idx('tags');
         if (iFront === -1 || iBack === -1) throw new Error('Missing front/back columns');
@@ -1750,9 +2077,10 @@
         let added = 0;
         for (let i = 1; i < rows.length; i++) {
           const r = rows[i];
-          const front = (r[iFront] || '').trim();
+          const type = iType !== -1 ? (r[iType] || 'basic').toLowerCase() : 'basic';
+          const frontOrCloze = (r[iFront] || '').trim();
           const back = (r[iBack] || '').trim();
-          if (!front || !back) continue;
+          if (!frontOrCloze) continue;
 
           const deckName = iDeck !== -1 ? (r[iDeck] || '').trim() : 'Imported';
           let deckId = deckMap.get(deckName.toLowerCase());
@@ -1764,7 +2092,12 @@
           }
 
           const tags = iTags !== -1 && r[iTags] ? r[iTags].split(';').map((t) => t.trim()).filter(Boolean) : [];
-          Storage.addCard({ deckId, front, back, tags });
+          
+          if (type === 'cloze') {
+            Storage.addCard({ deckId, type: 'cloze', clozeText: frontOrCloze, tags });
+          } else {
+            Storage.addCard({ deckId, type, front: frontOrCloze, back, tags });
+          }
           added++;
         }
         refresh();
