@@ -28,6 +28,19 @@
   const RATING_CLASSES = ['again', 'hard', 'good', 'easy'];
 
   /* ---------------------------------------------------------- */
+  /* CLOUDFLARE SYNC CONFIG                                      */
+  /* ---------------------------------------------------------- */
+  const WORKER_URL = 'https://cjay-cloud.monaplayzsbackup.workers.dev';
+  const APP_ID = 'cjaycards';
+  const DEFAULT_SYNC_TOKEN = 'cjc_p8x2m5n9q4w7r3t6y1u8v2b5c9d4f7e1';
+  const SYNC_TOKEN_KEY = 'cjaycards_sync_token';
+  const PUSH_FLAG_KEY = 'cjaycards_push_enabled';
+  const SYNC_TIME_KEY = 'cjaycards_last_sync';
+
+  let isSyncing = false;
+  let syncTimeout = null;
+
+  /* ---------------------------------------------------------- */
   /* URL flags                                                   */
   /* ---------------------------------------------------------- */
   function parseUrlFlags() {
@@ -68,6 +81,150 @@
     localStorage.setItem(LS.mode, mode);
     Storage.updateSettings({ family, mode });
     state.data = Storage.getData();
+  }
+
+  /* ---------------------------------------------------------- */
+  /* SYNC ENGINE                                                 */
+  /* ---------------------------------------------------------- */
+  function scheduleSync() {
+    if (isSyncing || state.readOnly) return;
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => { syncToWorker(); }, 2000);
+  }
+
+  async function syncToWorker() {
+    if (isSyncing || state.readOnly) return;
+    const token = localStorage.getItem(SYNC_TOKEN_KEY) || DEFAULT_SYNC_TOKEN;
+    if (!token) return;
+
+    isSyncing = true;
+    const statusEl = document.getElementById('syncStatusBox');
+    if (statusEl) { statusEl.textContent = 'Syncing...'; statusEl.style.color = 'var(--accent)'; }
+
+    try {
+      const data = Storage.getData();
+      const payload = {
+        collections: { decks: data.decks, cards: data.cards },
+        deletedIds: { decks: data.deletedIds.decks, cards: data.deletedIds.cards },
+        settings: { family: getFamily(), mode: getMode() }
+      };
+
+      const res = await fetch(`${WORKER_URL}/v1/sync/${APP_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Sync-Token': token },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const result = await res.json();
+      if (!result.ok) throw new Error(result.error || 'Sync failed');
+
+      // Worker returned merged data. Replace local.
+      const newData = Storage.getData();
+      newData.decks = result.collections.decks;
+      newData.cards = result.collections.cards;
+      newData.deletedIds = result.deletedIds;
+      
+      Storage.setData(newData); // save without triggering loop
+      state.data = Storage.getData();
+      
+      // Apply theme changes from other devices
+      if (result.settings) {
+        applyTheme(result.settings.family || 'slate', result.settings.mode || 'light');
+      }
+
+      localStorage.setItem(SYNC_TIME_KEY, new Date().toISOString());
+      
+      if (statusEl) { statusEl.textContent = 'Synced · ' + newData.cards.length + ' cards'; statusEl.style.color = 'var(--easy)'; }
+      
+      refresh();
+      if (!$('#viewRoot').hidden && state.currentDeckId) {
+        const v = $('#viewRoot .view');
+        if (v) renderDeckDetail(v, state.currentDeckId);
+      }
+    } catch (err) {
+      console.error('[sync]', err);
+      if (statusEl) { statusEl.textContent = 'Sync failed'; statusEl.style.color = 'var(--again)'; }
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  window.addEventListener('cjaycards-storage-changed', scheduleSync);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncToWorker();
+  });
+
+  /* ---------------------------------------------------------- */
+  /* PUSH NOTIFICATIONS                                          */
+  /* ---------------------------------------------------------- */
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  function updatePushUI() {
+    const enabled = localStorage.getItem(PUSH_FLAG_KEY) === '1';
+    const btn = document.getElementById('enablePushBtn');
+    if (btn) btn.textContent = enabled ? 'Disable Notifications' : 'Enable Notifications';
+  }
+
+  async function togglePush() {
+    const enabled = localStorage.getItem(PUSH_FLAG_KEY) === '1';
+    if (enabled) {
+      // Disable
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch(`${WORKER_URL}/v1/push/${APP_ID}/unsubscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint })
+          });
+          await sub.unsubscribe();
+        }
+        localStorage.removeItem(PUSH_FLAG_KEY);
+        updatePushUI();
+        toast('Notifications disabled', { type: 'info' });
+      } catch (err) { toast('Failed to disable push', { type: 'error' }); }
+    } else {
+      // Enable
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        toast('Push not supported', { type: 'warn' }); return;
+      }
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') { toast('Permission denied', { type: 'warn' }); return; }
+        
+        const reg = await navigator.serviceWorker.ready;
+        const vapidRes = await fetch(`${WORKER_URL}/v1/push/${APP_ID}/vapid-key`);
+        const { key } = await vapidRes.json();
+        
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(key)
+          });
+        }
+        
+        await fetch(`${WORKER_URL}/v1/push/${APP_ID}/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub })
+        });
+        localStorage.setItem(PUSH_FLAG_KEY, '1');
+        updatePushUI();
+        toast('Notifications enabled', { type: 'success' });
+      } catch (err) {
+        toast('Failed to enable push', { type: 'error' });
+      }
+    }
   }
 
   /* ---------------------------------------------------------- */
@@ -477,7 +634,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 85;
+    menu.style.zIndex = 85; // <--- FIXED z-index so it shows above viewRoot
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
@@ -738,7 +895,7 @@
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 6}px`;
     menu.style.left = `${Math.max(12, rect.right - 200)}px`;
-    menu.style.zIndex = 85;
+    menu.style.zIndex = 85; // <--- FIXED z-index
     document.body.appendChild(menu);
 
     const close = () => menu.remove();
@@ -1395,6 +1552,7 @@
     `).join('');
 
     const ro = state.readOnly;
+    const lastSync = localStorage.getItem(SYNC_TIME_KEY);
 
     root.innerHTML = `
       ${viewHeaderHTML('Settings')}
@@ -1406,7 +1564,24 @@
           <div class="settings-section-hint">Tap a family to switch palettes. Sun/moon in the header flips light/dark.</div>
         </section>
 
-
+        ${!ro ? `
+        <section class="settings-section">
+          <div class="settings-section-title">Sync & Notifications</div>
+          <div class="settings-card">
+            <div class="drive-block">
+              <label class="drive-field">
+                <span class="drive-field-label">Sync Token</span>
+                <input type="password" id="syncTokenInput" value="${localStorage.getItem(SYNC_TOKEN_KEY) || DEFAULT_SYNC_TOKEN}" autocomplete="off">
+              </label>
+              <div class="drive-actions">
+                <button class="drive-btn primary" id="syncNowBtn"><i class="fa-solid fa-rotate"></i><span>Sync Now</span></button>
+                <button class="drive-btn" id="enablePushBtn"><i class="fa-solid fa-bell"></i><span>Enable Notifications</span></button>
+              </div>
+              <div class="drive-status" id="syncStatusBox">${lastSync ? 'Last synced ' + relativeTime(lastSync) : 'Not synced yet'}</div>
+            </div>
+          </div>
+        </section>
+        ` : ''}
 
         ${!ro ? `
         <section class="settings-section">
@@ -1485,6 +1660,18 @@
         });
       });
     });
+
+    // Sync & Push Logic
+    const syncTokenInput = root.querySelector('#syncTokenInput');
+    if (syncTokenInput) {
+      syncTokenInput.addEventListener('change', () => {
+        localStorage.setItem(SYNC_TOKEN_KEY, syncTokenInput.value.trim());
+        toast('Token saved', { type: 'success' });
+      });
+      root.querySelector('#syncNowBtn').addEventListener('click', () => syncToWorker());
+      root.querySelector('#enablePushBtn').addEventListener('click', togglePush);
+      updatePushUI();
+    }
 
     const driveInput = root.querySelector('#driveClientId');
     if (driveInput) {
@@ -2464,6 +2651,9 @@
     applyTheme(s.family || localStorage.getItem(LS.family) || 'slate', s.mode || localStorage.getItem(LS.mode) || 'light');
 
     refresh();
+
+    // Sync on boot
+    setTimeout(() => syncToWorker(), 500);
   }
 
   init();
