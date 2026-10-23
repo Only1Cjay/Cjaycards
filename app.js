@@ -16,14 +16,6 @@ const ICON_CHEVRON = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"
 // ============================================================
 // STATE
 // ============================================================
-function getDefaultState() {
-    return {
-        decks: {},
-        cards: {},
-        deletedIds: { decks: [], cards: [] },
-        studyStreak: { lastDate: null, count: 0 }
-    };
-}
 
 let state = loadState();
 let currentView = 'home';
