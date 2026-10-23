@@ -66,6 +66,7 @@
   function writeRaw(data) {
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
+      window.dispatchEvent(new Event('cjaycards-storage-changed')); // <--- ADD THIS LINE
       return true;
     } catch (e) {
       console.error('Storage write failed:', e);
