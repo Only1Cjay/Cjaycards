@@ -1,14 +1,25 @@
 {
-  "name": "CjayCards — Spaced Repetition",
-  "short_name": "CjayCards",
-  "description": "Flashcard app with spaced repetition. Create decks, study daily, master over time.",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#212A33",
-  "theme_color": "#212A33",
-  "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
-  ]
+    "name": "CjayCards",
+    "short_name": "CjayCards",
+    "description": "Spaced repetition flashcards with multiple card types",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#0a1628",
+    "theme_color": "#0a1628",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        }
+    ]
 }
